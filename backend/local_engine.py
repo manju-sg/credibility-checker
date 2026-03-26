@@ -1,6 +1,6 @@
 import re
-import numpy as np
 from textblob import TextBlob
+
 import spacy
 
 # Load spaCy small model
