@@ -14,8 +14,8 @@ try:
     GEMINI_API_KEY = os.getenv('GEMINI_API_KEY') or os.getenv('GOOGLE_FACT_CHECK_API_KEY', '')
     if GEMINI_API_KEY:
         gemini_client = genai.Client(api_key=GEMINI_API_KEY)
-        GEMINI_MODEL  = 'gemini-2.0-flash'
-        print(f"✅ Gemini 2.0 Flash loaded successfully")
+        GEMINI_MODEL  = 'gemini-2.5-flash'
+        print(f"✅ Gemini 2.5 Flash loaded successfully")
     else:
         gemini_client = None
         print("⚠️  No GEMINI_API_KEY found — falling back to NLP scoring")
