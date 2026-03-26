@@ -16,6 +16,8 @@ try:
         gemini_client = genai.Client(api_key=GEMINI_API_KEY)
         GEMINI_MODEL  = 'gemini-2.5-flash'
         print(f"✅ Gemini 2.5 Flash loaded successfully")
+
+
     else:
         gemini_client = None
         print("⚠️  No GEMINI_API_KEY found — falling back to NLP scoring")
