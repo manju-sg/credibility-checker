@@ -87,8 +87,10 @@ def whatsapp_webhook():
                 "I'll give you an AI-powered score instantly! 🔍"
             )
 
+        print(f"✅ Bot replying with: {response_text[:50]}...")
         resp.message(response_text)
         return str(resp), 200, {'Content-Type': 'text/xml'}
+
 
     except Exception as e:
         print(f"WhatsApp webhook error: {e}")
