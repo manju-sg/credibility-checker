@@ -84,14 +84,15 @@ Return ONLY valid JSON, no markdown:
 
 INTENT_PROMPT = """Classify this WhatsApp message into exactly one category:
 
-CLAIM — a news headline, medical claim, political statement, or something that sounds like it needs fact-checking
+CLAIM — a news headline, medical claim, political statement, or something that needs fact-checking
 GREETING — hello, hi, hey, good morning, etc.
-QUESTION — asking what the bot does, how it works, what it can check, etc.
+QUESTION — asking "what can you do?", "how to use this?", "help", or asking about your features/capabilities
 CONVERSATION — general chat, jokes, unrelated topics
 
 Message: "{text}"
 
 Reply with ONLY one word: CLAIM, GREETING, QUESTION, or CONVERSATION"""
+
 
 CHAT_PROMPT = """You are CredChecker Bot, a helpful WhatsApp assistant that specializes in fact-checking and detecting misinformation.
 
