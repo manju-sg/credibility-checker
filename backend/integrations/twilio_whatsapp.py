@@ -99,32 +99,31 @@ def _format_score(result, is_image=False):
     content_icon = '🖼️ Image' if is_image else '📝 Text'
 
     lines = [
-        f"{circle} *{label}* — {content_icon} Analysis",
-        "━━━━━━━━━━━━━━━",
+        f"{circle} *VERDICT: {verdict.replace('_', ' ')}*",
+        "━━━━━━━━━━━━━━━━━━━━━━",
         f"📊 *Credibility Score: {score}/100*",
-        f"🏷️ Verdict: {verdict.replace('_', ' ')}",
         "",
     ]
 
     # Breakdown
-    if is_image:
-        lines += [
-            "🔬 *Visual Analysis:*",
-            f"  • Authenticity: {bd.get('visual_authenticity', '–')}%",
-            f"  • Text claims: {bd.get('text_credibility', '–')}%",
-            f"  • Context: {bd.get('context_accuracy', '–')}%",
-            f"  • Sources: {bd.get('source_quality', '–')}%",
-            "",
-        ]
-    else:
-        lines += [
-            "📈 *Breakdown:*",
-            f"  • Fact match: {bd.get('fact_match', '–')}%",
-            f"  • Language: {bd.get('language', '–')}%",
-            f"  • Sentiment: {bd.get('sentiment', '–')}%",
-            f"  • Sources: {bd.get('source_quality', '–')}%",
-            "",
-        ]
+    # if is_image:
+    #     lines += [
+    #         "🔬 *Visual Analysis:*",
+    #         f"  • Authenticity: {bd.get('visual_authenticity', '–')}%",
+    #         f"  • Text claims: {bd.get('text_credibility', '–')}%",
+    #         f"  • Context: {bd.get('context_accuracy', '–')}%",
+    #         f"  • Sources: {bd.get('source_quality', '–')}%",
+    #         "",
+    #     ]
+    # else:
+    #     lines += [
+    #         "📈 *Breakdown:*",
+    #         f"  • Fact match: {bd.get('fact_match', '–')}%",
+    #         f"  • Language: {bd.get('language', '–')}%",
+    #         f"  • Sentiment: {bd.get('sentiment', '–')}%",
+    #         f"  • Sources: {bd.get('source_quality', '–')}%",
+    #         "",
+    #     ]
 
     if summary:
         lines += [f"💡 *Summary:* {summary}", ""]
@@ -133,19 +132,19 @@ def _format_score(result, is_image=False):
         lines += [f"🧠 *AI Reasoning:*", f"{result['reasoning']}", ""]
 
     if flags:
-        lines.append("⚠️ *Red Flags:*")
+        lines.append("⚠️ *Observations:*")
         for f in flags[:3]:
             lines.append(f"  • {f}")
         lines.append("")
 
 
-    fact_claims = [c for c in claims if c.get('type') == 'FACT_CHECKED']
-    if fact_claims:
-        lines.append("🔎 *Fact Checks:*")
-        for c in fact_claims[:2]:
-            lines.append(f"  • \"{c['text'][:55]}...\"")
-            lines.append(f"    → {c.get('rating', 'checked')} ({c.get('publisher', '')})")
-        lines.append("")
+    # fact_claims = [c for c in claims if c.get('type') == 'FACT_CHECKED']
+    # if fact_claims:
+    #     lines.append("🔎 *Fact Checks:*")
+    #     for c in fact_claims[:2]:
+    #         lines.append(f"  • \"{c['text'][:55]}...\"")
+    #         lines.append(f"    → {c.get('rating', 'checked')} ({c.get('publisher', '')})")
+    #     lines.append("")
 
     lines.append("_Powered by Gemini 2.5 Flash + Google Fact Check AI_ 🤖")
     return "\n".join(lines)
