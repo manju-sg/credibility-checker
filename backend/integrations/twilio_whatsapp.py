@@ -152,8 +152,9 @@ def _format_score(result, is_image=False):
 
 def _welcome_message():
     return (
-        "👋 Hi! I'm *CredChecker Bot* 🔍\n\n"
+        "👋 Hi! I'm *Veritas AI Bot* 🔍\n\n"
         "I use *Gemini 2.5 Flash AI* to detect misinformation!\n\n"
+
         "Here's what I can do:\n"
         "📝 *Fact-check text* — send any headline, claim, or article\n"
         "🖼️ *Analyze images* — send screenshots to detect manipulation\n"

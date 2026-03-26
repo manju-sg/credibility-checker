@@ -1,487 +1,1177 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Credibility Checker – Gemini AI Misinformation Detector</title>
-  <meta name="description" content="Verify claims and detect misinformation with Gemini AI-powered fact-checking. Supports text and image analysis." />
+  <title>Veritas AI – Credibility Checker</title>
+  <meta name="description"
+    content="Verify claims and detect misinformation with Gemini AI-powered fact-checking. Supports text and image analysis." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet" />
   <link rel="manifest" href="manifest.json" />
-  <meta name="theme-color" content="#6366f1" />
+  <meta name="theme-color" content="#f1f5f9" />
   <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/3208/3208679.png" />
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* --- LIQUID GLASS LIGHT THEME VARIABLES --- */
     :root {
-      --bg: #0a0e1a; --surface: #111827; --border: rgba(99,102,241,0.2);
-      --accent: #6366f1; --accent2: #818cf8; --text: #e2e8f0; --muted: #8892a4;
-      --green: #10b981; --yellow: #f59e0b; --red: #ef4444; --radius: 14px;
+      --bg: #f1f5f9;
+      --text: #0f172a;
+      --muted: #475569;
+
+      --accent: #6366f1;
+      --accent2: #4f46e5;
+      --accent-teal: #0d9488;
+
+      --green: #10b981;
+      --yellow: #f59e0b;
+      --red: #ef4444;
+
+      --glass-bg: rgba(255, 255, 255, 0.55);
+      --glass-border: rgba(255, 255, 255, 0.8);
+      --glass-highlight: rgba(255, 255, 255, 1);
+      --glass-shadow: 0 8px 32px rgba(31, 38, 135, 0.06);
+
+      --radius: 18px;
     }
-    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
-    body::before {
-      content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
-      background: radial-gradient(ellipse 80% 50% at 20% -10%, rgba(99,102,241,0.18) 0%, transparent 60%),
-                  radial-gradient(ellipse 60% 40% at 80% 110%, rgba(16,185,129,0.12) 0%, transparent 60%);
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+      position: relative;
     }
+
+    /* --- LIQUID BACKGROUND BLOBS --- */
+    .bg-blobs {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .blob {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(90px);
+      opacity: 0.6;
+      animation: float 20s infinite alternate cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .blob-1 {
+      width: 50vw;
+      height: 50vw;
+      background: #e0e7ff;
+      top: -10%;
+      left: -10%;
+    }
+
+    .blob-2 {
+      width: 45vw;
+      height: 45vw;
+      background: #ccfbf1;
+      bottom: -10%;
+      right: -5%;
+      animation-delay: -5s;
+      animation-direction: alternate-reverse;
+    }
+
+    .blob-3 {
+      width: 35vw;
+      height: 35vw;
+      background: #fae8ff;
+      top: 40%;
+      left: 30%;
+      animation-delay: -10s;
+    }
+
+    @keyframes float {
+      0% {
+        transform: translate(0, 0) scale(1);
+      }
+
+      50% {
+        transform: translate(3%, 8%) scale(1.05) rotate(3deg);
+      }
+
+      100% {
+        transform: translate(-3%, 12%) scale(0.95) rotate(-3deg);
+      }
+    }
+
+    /* --- GLASSMORPHISM UTILITY --- */
+    .glass-panel {
+      background: var(--glass-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border);
+      border-top-color: var(--glass-highlight);
+      border-left-color: var(--glass-highlight);
+      box-shadow: var(--glass-shadow);
+    }
+
     header {
-      position: relative; z-index: 1; padding: 22px 20px 18px;
-      border-bottom: 1px solid var(--border); background: rgba(10,14,26,0.75);
-      backdrop-filter: blur(16px); display: flex; align-items: center; gap: 16px;
+      position: relative;
+      z-index: 1;
+      padding: 18px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 36px;
+      /* Inherit glass panel */
+      background: rgba(255, 255, 255, 0.65);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--glass-highlight);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
     }
+
     .logo-icon {
-      width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center;
-      font-size: 22px; flex-shrink: 0; box-shadow: 0 0 20px rgba(99,102,241,0.4);
-      background: linear-gradient(135deg, var(--accent), #a78bfa);
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      font-size: 22px;
+      flex-shrink: 0;
+      color: white;
+      box-shadow: 0 4px 14px rgba(99, 102, 241, 0.3);
+      background: linear-gradient(135deg, var(--accent), #a855f7);
     }
-    header h1 { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.5px; }
-    header h1 span { color: var(--accent2); }
-    header p { color: var(--muted); font-size: 0.82rem; margin-top: 2px; }
-    main { position: relative; z-index: 1; max-width: 800px; margin: 36px auto; padding: 0 20px 60px; }
+
+    header h1 {
+      font-size: 1.6rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+    }
+
+    header h1 span {
+      color: var(--accent2);
+    }
+
+    header p {
+      color: var(--muted);
+      font-size: 0.82rem;
+      margin-top: 2px;
+    }
+
+    main {
+      position: relative;
+      z-index: 1;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 0 20px 60px;
+    }
+
     .card {
-      background: rgba(17,24,39,0.88); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 26px; backdrop-filter: blur(12px);
+      border-radius: var(--radius);
+      padding: 30px;
     }
+
     label.field-label {
-      display: block; font-size: 0.78rem; font-weight: 600; text-transform: uppercase;
-      letter-spacing: 0.08em; color: var(--accent2); margin-bottom: 10px;
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent2);
+      margin-bottom: 12px;
     }
+
     textarea#input-text {
-      width: 100%; background: var(--bg); border: 1.5px solid var(--border);
-      border-radius: 10px; color: var(--text); font-family: inherit; font-size: 0.95rem;
-      line-height: 1.6; padding: 14px 16px; resize: vertical; min-height: 120px;
-      outline: none; transition: border-color 0.2s;
+      width: 100%;
+      background: rgba(255, 255, 255, 0.7);
+      border: 1px solid var(--glass-border);
+      border-top-color: var(--glass-highlight);
+      border-left-color: var(--glass-highlight);
+      border-radius: 12px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.95rem;
+      line-height: 1.6;
+      padding: 16px;
+      resize: vertical;
+      min-height: 120px;
+      outline: none;
+      transition: all 0.3s ease;
+      box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.02);
     }
-    textarea#input-text:focus { border-color: var(--accent); }
-    textarea#input-text::placeholder { color: var(--muted); }
-    .input-meta { display: flex; justify-content: space-between; margin-top: 8px; }
-    .char-count { font-size: 0.75rem; color: var(--muted); }
-    .char-warn { color: var(--yellow); }
+
+    textarea#input-text:focus {
+      background: rgba(255, 255, 255, 0.9);
+      border-color: var(--accent);
+      box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.02), 0 0 0 3px rgba(99, 102, 241, 0.15);
+    }
+
+    textarea#input-text::placeholder {
+      color: #94a3b8;
+    }
+
+    .input-meta {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 8px;
+    }
+
+    .char-count {
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    .char-warn {
+      color: #d97706;
+    }
+
     /* Image drop zone */
     #image-drop-zone {
-      margin-top: 14px; border: 2px dashed var(--border); border-radius: 10px;
-      padding: 18px; text-align: center; cursor: pointer; color: var(--muted);
-      font-size: 0.84rem; transition: border-color 0.2s, background 0.2s;
+      margin-top: 16px;
+      border: 2px dashed rgba(99, 102, 241, 0.3);
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 0.88rem;
+      transition: all 0.2s;
+      background: rgba(255, 255, 255, 0.4);
     }
-    #image-drop-zone:hover, #image-drop-zone.drag-over { border-color: var(--accent); background: rgba(99,102,241,0.06); }
-    #image-preview { max-height: 150px; border-radius: 8px; margin-bottom: 8px; }
+
+    #image-drop-zone:hover,
+    #image-drop-zone.drag-over {
+      border-color: var(--accent);
+      background: rgba(255, 255, 255, 0.8);
+    }
+
+    #image-preview {
+      max-height: 150px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    }
+
     #clear-img-btn {
-      background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); color: #fca5a5;
-      font-size: 0.74rem; border-radius: 6px; padding: 4px 10px; cursor: pointer; font-family: inherit;
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      color: #dc2626;
+      font-size: 0.75rem;
+      border-radius: 8px;
+      padding: 6px 12px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.2s;
     }
+
+    #clear-img-btn:hover {
+      background: rgba(239, 68, 68, 0.2);
+    }
+
     .btn-check {
-      margin-top: 16px; width: 100%; padding: 14px;
+      margin-top: 20px;
+      width: 100%;
+      padding: 16px;
       background: linear-gradient(135deg, var(--accent), #7c3aed);
-      border: none; border-radius: 10px; color: #fff; font-family: inherit;
-      font-size: 1rem; font-weight: 700; cursor: pointer;
-      box-shadow: 0 4px 24px rgba(99,102,241,0.35);
-      transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      border-top-color: rgba(255, 255, 255, 0.7);
+      border-radius: 12px;
+      color: #fff;
+      font-family: inherit;
+      font-size: 1.05rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 8px 20px rgba(99, 102, 241, 0.3);
+      transition: all 0.2s;
     }
-    .btn-check:hover:not(:disabled) { opacity: 0.92; transform: translateY(-1px); }
-    .btn-check:disabled { opacity: 0.4; cursor: not-allowed; }
-    .examples { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
-    .examples-label { font-size: 0.72rem; font-weight: 600; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.08em; }
-    .example-btn { display: block; background: none; border: none; color: var(--accent2); font-family: inherit; font-size: 0.8rem; cursor: pointer; text-align: left; padding: 3px 0; opacity: 0.85; transition: opacity 0.15s; }
-    .example-btn:hover { opacity: 1; color: #fff; }
+
+    .btn-check:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 25px rgba(99, 102, 241, 0.4);
+    }
+
+    .btn-check:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
+    }
+
+    .examples {
+      margin-top: 24px;
+      padding-top: 18px;
+      border-top: 1px solid rgba(0, 0, 0, 0.05);
+    }
+
+    .examples-label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .example-btn {
+      display: block;
+      background: none;
+      border: none;
+      color: var(--accent2);
+      font-family: inherit;
+      font-size: 0.85rem;
+      cursor: pointer;
+      text-align: left;
+      padding: 4px 0;
+      opacity: 0.85;
+      transition: all 0.2s;
+    }
+
+    .example-btn:hover {
+      opacity: 1;
+      color: var(--accent);
+      transform: translateX(3px);
+    }
+
     /* Loader */
-    #loader { display: none; margin: 40px auto; text-align: center; }
-    .spinner { width: 42px; height: 42px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 14px; }
-    #loader p { color: var(--muted); font-size: 0.88rem; }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    #loader {
+      display: none;
+      margin: 50px auto;
+      text-align: center;
+    }
+
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 3px solid rgba(99, 102, 241, 0.2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 16px;
+    }
+
+    #loader p {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
     /* Error */
-    #error-box { display: none; margin-top: 22px; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); border-radius: var(--radius); padding: 16px 20px; }
-    #error-box h3 { color: var(--red); font-size: 0.88rem; margin-bottom: 4px; }
-    #error-box p { color: #fca5a5; font-size: 0.83rem; }
+    #error-box {
+      display: none;
+      margin-top: 22px;
+      background: rgba(254, 226, 226, 0.7);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: var(--radius);
+      padding: 18px 24px;
+      backdrop-filter: blur(10px);
+    }
+
+    #error-box h3 {
+      color: var(--red);
+      font-size: 0.9rem;
+      margin-bottom: 4px;
+    }
+
+    #error-box p {
+      color: #991b1b;
+      font-size: 0.85rem;
+    }
+
     /* Results */
-    #results { display: none; margin-top: 28px; }
-    .score-card { text-align: center; padding: 38px 26px; border-radius: var(--radius); border: 1px solid var(--border); background: rgba(17,24,39,0.88); position: relative; overflow: hidden; }
-    .score-card::before { content: ''; position: absolute; top: -60px; left: 50%; transform: translateX(-50%); width: 220px; height: 220px; border-radius: 50%; filter: blur(60px); pointer-events: none; opacity: 0.3; }
-    .score-card.green::before { background: var(--green); }
-    .score-card.yellow::before { background: var(--yellow); }
-    .score-card.red::before { background: var(--red); }
-    .score-ring-wrap { position: relative; width: 160px; height: 160px; margin: 0 auto 18px; }
-    .score-ring { transform: rotate(-90deg); }
-    .ring-bg { fill: none; stroke: rgba(255,255,255,0.07); stroke-width: 10; }
-    .ring-fill { fill: none; stroke-width: 10; stroke-linecap: round; transition: stroke-dashoffset 1.2s cubic-bezier(0.22,1,0.36,1); }
-    .ring-fill.green { stroke: var(--green); }
-    .ring-fill.yellow { stroke: var(--yellow); }
-    .ring-fill.red { stroke: var(--red); }
-    .score-number { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 2.6rem; font-weight: 800; line-height: 1; }
-    .score-number sub { font-size: 0.88rem; font-weight: 500; color: var(--muted); }
-    .verdict { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.3px; margin-bottom: 8px; }
-    .verdict-pill { display: inline-block; padding: 4px 14px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 14px; }
-    .summary-text { color: var(--muted); font-size: 0.88rem; max-width: 520px; margin: 0 auto 28px; line-height: 1.65; }
+    #results {
+      display: none;
+      margin-top: 28px;
+    }
+
+    .score-card {
+      text-align: center;
+      padding: 42px 26px;
+      border-radius: var(--radius);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .score-card::before {
+      content: '';
+      position: absolute;
+      top: -60px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 220px;
+      height: 220px;
+      border-radius: 50%;
+      filter: blur(60px);
+      pointer-events: none;
+      opacity: 0.3;
+      mix-blend-mode: multiply;
+    }
+
+    .score-card.green::before {
+      background: var(--green);
+      opacity: 0.15;
+    }
+
+    .score-card.yellow::before {
+      background: var(--yellow);
+      opacity: 0.15;
+    }
+
+    .score-card.red::before {
+      background: var(--red);
+      opacity: 0.15;
+    }
+
+    .score-ring-wrap {
+      position: relative;
+      width: 170px;
+      height: 170px;
+      margin: 0 auto 22px;
+      filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.05));
+    }
+
+    .score-ring {
+      transform: rotate(-90deg);
+    }
+
+    .ring-bg {
+      fill: none;
+      stroke: rgba(0, 0, 0, 0.04);
+      stroke-width: 12;
+    }
+
+    .ring-fill {
+      fill: none;
+      stroke-width: 12;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 1.5s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .ring-fill.green {
+      stroke: var(--green);
+    }
+
+    .ring-fill.yellow {
+      stroke: var(--yellow);
+    }
+
+    .ring-fill.red {
+      stroke: var(--red);
+    }
+
+    .score-number {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 2.8rem;
+      font-weight: 800;
+      line-height: 1;
+      color: var(--text);
+    }
+
+    .score-number sub {
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--muted);
+    }
+
+    .verdict {
+      font-size: 1.6rem;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+      margin-bottom: 10px;
+    }
+
+    .verdict-pill {
+      display: inline-block;
+      padding: 6px 16px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 18px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    }
+
+    .summary-text {
+      color: var(--muted);
+      font-size: 0.92rem;
+      max-width: 540px;
+      margin: 0 auto 32px;
+      line-height: 1.7;
+    }
+
     /* Breakdown */
-    .breakdown-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; }
-    @media (max-width: 580px) { .breakdown-grid { grid-template-columns: 1fr 1fr; } header h1 { font-size: 1.3rem; } }
-    .breakdown-item { text-align: center; }
-    .breakdown-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 5px; font-weight: 600; }
-    .breakdown-val { font-size: 1.4rem; font-weight: 800; margin-bottom: 7px; }
-    .bar-track { background: rgba(255,255,255,0.07); border-radius: 999px; height: 6px; overflow: hidden; }
-    .bar-fill { height: 100%; border-radius: 999px; transition: width 1s cubic-bezier(0.22,1,0.36,1); }
-    .bar-fill.blue { background: linear-gradient(90deg, var(--accent), var(--accent2)); }
-    .bar-fill.purple { background: linear-gradient(90deg, #a855f7, #d946ef); }
-    .bar-fill.teal { background: linear-gradient(90deg, #0ea5e9, var(--green)); }
+    .breakdown-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    @media (max-width: 580px) {
+      .breakdown-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      header h1 {
+        font-size: 1.3rem;
+      }
+    }
+
+    .breakdown-item {
+      text-align: center;
+      background: rgba(255, 255, 255, 0.4);
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.6);
+    }
+
+    .breakdown-label {
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+
+    .breakdown-val {
+      font-size: 1.4rem;
+      font-weight: 800;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+
+    .bar-track {
+      background: rgba(0, 0, 0, 0.06);
+      border-radius: 999px;
+      height: 8px;
+      overflow: hidden;
+      box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      transition: width 1.2s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .bar-fill.blue {
+      background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+    }
+
+    .bar-fill.purple {
+      background: linear-gradient(90deg, #a855f7, #d946ef);
+    }
+
+    .bar-fill.teal {
+      background: linear-gradient(90deg, #0ea5e9, #10b981);
+    }
+
     /* Reasoning panel */
-    #reasoning-wrap { display: none; margin-top: 18px; text-align: left; }
-    .reasoning-toggle { background: none; border: 1px solid var(--border); border-radius: 8px; color: var(--accent2); font-family: inherit; font-size: 0.78rem; font-weight: 600; padding: 6px 14px; cursor: pointer; margin-bottom: 10px; transition: border-color 0.2s; }
-    .reasoning-toggle:hover { border-color: var(--accent); }
-    #reasoning-text { display: none; background: rgba(99,102,241,0.07); border: 1px solid var(--border); border-radius: 10px; padding: 14px; font-size: 0.82rem; color: var(--muted); line-height: 1.7; }
+    #reasoning-wrap {
+      display: none;
+      margin-top: 24px;
+      text-align: left;
+    }
+
+    .reasoning-toggle {
+      background: rgba(255, 255, 255, 0.6);
+      border: 1px solid var(--glass-border);
+      border-radius: 10px;
+      color: var(--accent2);
+      font-family: inherit;
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 8px 16px;
+      cursor: pointer;
+      margin-bottom: 12px;
+      transition: all 0.2s;
+    }
+
+    .reasoning-toggle:hover {
+      background: #fff;
+      border-color: var(--accent);
+    }
+
+    #reasoning-text {
+      display: none;
+      background: rgba(255, 255, 255, 0.6);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      padding: 16px;
+      font-size: 0.85rem;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
     /* Sections */
-    .section { margin-top: 18px; }
-    .section-card { border-radius: var(--radius); border: 1px solid; padding: 18px 20px; }
-    .section-card.flags { background: rgba(245,158,11,0.07); border-color: rgba(245,158,11,0.25); }
-    .section-card.claims { background: rgba(99,102,241,0.07); border-color: rgba(99,102,241,0.25); }
-    .section-card.empty { background: rgba(255,255,255,0.03); border-color: var(--border); text-align: center; color: var(--muted); font-size: 0.88rem; padding: 24px; }
-    .section-title { font-size: 0.88rem; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
-    .flags .section-title { color: #fbbf24; }
-    .claims .section-title { color: var(--accent2); }
-    .flag-item { display: flex; align-items: flex-start; gap: 8px; color: #fde68a; font-size: 0.83rem; margin-bottom: 7px; line-height: 1.5; }
-    .flag-item::before { content: '⚠️'; flex-shrink: 0; font-size: 0.78rem; margin-top: 1px; }
-    .claim-chip { background: rgba(99,102,241,0.12); border: 1px solid rgba(99,102,241,0.2); border-radius: 10px; padding: 10px 13px; margin-bottom: 7px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-    .claim-text { font-size: 0.83rem; color: var(--text); flex: 1; }
-    .claim-type-badge { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; padding: 3px 8px; border-radius: 999px; background: rgba(99,102,241,0.2); color: var(--accent2); white-space: nowrap; }
-    .verified-badge { font-size: 0.68rem; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: rgba(16,185,129,0.2); color: var(--green); white-space: nowrap; }
-    .btn-reset { display: block; margin: 22px auto 0; background: none; border: 1.5px solid var(--border); border-radius: 999px; color: var(--accent2); font-family: inherit; font-size: 0.84rem; font-weight: 600; padding: 8px 22px; cursor: pointer; transition: border-color 0.2s, color 0.2s; }
-    .btn-reset:hover { border-color: var(--accent); color: #fff; }
+    .section {
+      margin-top: 24px;
+    }
+
+    .section-card {
+      border-radius: var(--radius);
+      padding: 22px 24px;
+      /* Inherit glass panel through JS */
+    }
+
+    .section-card.flags {
+      background: rgba(254, 243, 199, 0.65);
+      /* Amber tinted glass */
+      border-color: rgba(245, 158, 11, 0.3);
+    }
+
+    .section-card.empty {
+      background: rgba(255, 255, 255, 0.4);
+      border-color: var(--glass-border);
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.9rem;
+      padding: 28px;
+    }
+
+    .section-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .flags .section-title {
+      color: #d97706;
+    }
+
+    .claims .section-title {
+      color: var(--accent2);
+    }
+
+    .flag-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      color: #b45309;
+      font-size: 0.85rem;
+      margin-bottom: 10px;
+      line-height: 1.6;
+      font-weight: 500;
+    }
+
+    .flag-item::before {
+      content: '⚠️';
+      flex-shrink: 0;
+      font-size: 0.8rem;
+      margin-top: 2px;
+    }
+
+    .claim-chip {
+      background: rgba(255, 255, 255, 0.8);
+      border: 1px solid var(--glass-border);
+      border-top-color: #fff;
+      border-radius: 12px;
+      padding: 12px 16px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+      transition: transform 0.2s;
+    }
+
+    .claim-chip:hover {
+      transform: translateY(-1px);
+    }
+
+    .claim-text {
+      font-size: 0.85rem;
+      color: var(--text);
+      flex: 1;
+      font-weight: 500;
+    }
+
+    .claim-type-badge {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(99, 102, 241, 0.1);
+      color: var(--accent2);
+      white-space: nowrap;
+    }
+
+    .verified-badge {
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(16, 185, 129, 0.1);
+      color: #059669;
+      white-space: nowrap;
+    }
+
+    .btn-reset {
+      display: block;
+      margin: 32px auto 0;
+      background: rgba(255, 255, 255, 0.6);
+      border: 1.5px solid var(--glass-border);
+      border-radius: 999px;
+      color: var(--accent2);
+      font-family: inherit;
+      font-size: 0.88rem;
+      font-weight: 600;
+      padding: 10px 28px;
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+      transition: all 0.2s;
+    }
+
+    .btn-reset:hover {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #fff;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+    }
+
     /* Feature cards */
-    #feature-cards { margin-top: 36px; display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; }
-    @media (max-width: 540px) { #feature-cards { grid-template-columns: 1fr; } }
-    .feat-card { background: rgba(17,24,39,0.6); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; transition: border-color 0.2s, transform 0.2s; }
-    .feat-card:hover { border-color: rgba(99,102,241,0.5); transform: translateY(-3px); }
-    .feat-icon { font-size: 1.7rem; margin-bottom: 10px; }
-    .feat-title { font-size: 0.88rem; font-weight: 700; margin-bottom: 5px; }
-    .feat-desc { font-size: 0.76rem; color: var(--muted); line-height: 1.6; }
-    footer { position: relative; z-index: 1; border-top: 1px solid var(--border); text-align: center; padding: 18px; color: var(--muted); font-size: 0.76rem; }
-    .fade-in { animation: fadeIn 0.45s ease both; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+    #feature-cards {
+      margin-top: 40px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    @media (max-width: 540px) {
+      #feature-cards {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .feat-card {
+      border-radius: var(--radius);
+      padding: 22px;
+      transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    }
+
+    .feat-card:hover {
+      border-color: var(--glass-highlight);
+      transform: translateY(-4px);
+      box-shadow: 0 12px 30px rgba(31, 38, 135, 0.08);
+      background: rgba(255, 255, 255, 0.85);
+    }
+
+    .feat-icon {
+      font-size: 1.8rem;
+      margin-bottom: 12px;
+      filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.05));
+    }
+
+    .feat-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+
+    .feat-desc {
+      font-size: 0.8rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    footer {
+      position: relative;
+      z-index: 1;
+      border-top: 1px solid rgba(0, 0, 0, 0.05);
+      text-align: center;
+      padding: 24px;
+      color: var(--muted);
+      font-size: 0.8rem;
+      margin-top: 20px;
+    }
+
+    .fade-in {
+      animation: fadeIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(15px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
   </style>
 </head>
+
 <body>
 
-<header>
-  <div class="logo-icon">🔍</div>
-  <div>
-    <h1>Credibility <span>Checker</span></h1>
-    <p>Gemini AI · Fact Check API · Image Analysis</p>
+  <div class="bg-blobs">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="blob blob-3"></div>
   </div>
-</header>
 
-<main>
-  <!-- Input -->
-  <div class="card" id="input-card">
-    <label class="field-label" for="input-text">Paste a headline, tweet, or article</label>
-    <textarea id="input-text" placeholder="e.g. Scientists discovered a miracle cure that doctors don't want you to know about..."></textarea>
-    <div class="input-meta">
-      <span class="char-count" id="char-count">0 / 5000</span>
-      <span class="char-count char-warn" id="char-warn" style="display:none">Approaching limit</span>
+  <header>
+    <div class="logo-icon">V</div>
+    <div>
+      <h1>Veritas <span>AI</span></h1>
+      <p>Content Integrity & Misinformation Detection</p>
     </div>
+  </header>
 
-    <!-- Image upload -->
-    <div id="image-drop-zone" title="Click or drag an image here">
-      <input type="file" id="image-input" accept="image/*" style="display:none" onchange="handleImageSelect(event)" />
-      <div id="image-preview-wrap" style="display:none; flex-direction:column; align-items:center;">
-        <img id="image-preview" src="" alt="Preview" />
-        <button id="clear-img-btn" onclick="clearImage(event)">✕ Remove image</button>
-      </div>
-      <div id="image-drop-hint">
-        🖼️ <strong>Drop an image here</strong> or click to upload<br>
-        <small>JPG · PNG · WEBP — for image fact-checking</small>
-      </div>
-    </div>
-
-    <button class="btn-check" id="check-btn" onclick="submitCheck()" disabled>Check Credibility</button>
-
-    <div class="examples">
-      <div class="examples-label">Quick examples →</div>
-      <button class="example-btn" onclick="fillExample(this.textContent.trim())">Meta has overtaken Apple to become the world's most valuable company</button>
-      <button class="example-btn" onclick="fillExample(this.textContent.trim())">Drinking 10 glasses of water daily can cure diabetes</button>
-      <button class="example-btn" onclick="fillExample(this.textContent.trim())">Scientists discover 95% of the ocean remains unmapped</button>
-    </div>
-  </div>
-
-  <!-- Loader -->
-  <div id="loader">
-    <div class="spinner"></div>
-    <p>Analyzing with Gemini AI + Fact Check API…</p>
-  </div>
-
-  <!-- Error -->
-  <div id="error-box">
-    <h3>Analysis Failed</h3>
-    <p id="error-msg">Something went wrong. Please try again.</p>
-  </div>
-
-  <!-- Results -->
-  <div id="results">
-    <div class="score-card card fade-in" id="score-card">
-      <div class="score-ring-wrap">
-        <svg class="score-ring" width="160" height="160" viewBox="0 0 160 160">
-          <circle class="ring-bg" cx="80" cy="80" r="68"/>
-          <circle class="ring-fill" id="ring-fill" cx="80" cy="80" r="68" stroke-dasharray="427.26" stroke-dashoffset="427.26"/>
-        </svg>
-        <div class="score-number" id="score-number">0<sub>/100</sub></div>
+  <main>
+    <div class="card glass-panel" id="input-card">
+      <label class="field-label" for="input-text">Paste a headline, tweet, or article</label>
+      <textarea id="input-text"
+        placeholder="e.g. Scientists discovered a miracle cure that doctors don't want you to know about..."></textarea>
+      <div class="input-meta">
+        <span class="char-count" id="char-count">0 / 5000</span>
+        <span class="char-count char-warn" id="char-warn" style="display:none">Approaching limit</span>
       </div>
 
-      <div class="verdict" id="verdict-text">—</div>
-      <div id="verdict-badge"></div>
-      <div class="summary-text" id="summary-text"></div>
-
-      <div class="breakdown-grid" id="breakdown-grid">
-        <div class="breakdown-item">
-          <div class="breakdown-label" id="lbl-0">Fact Match</div>
-          <div class="breakdown-val" id="bd-0">—</div>
-          <div class="bar-track"><div class="bar-fill blue" id="bar-0" style="width:0%"></div></div>
+      <div id="image-drop-zone" title="Click or drag an image here">
+        <input type="file" id="image-input" accept="image/*" style="display:none" onchange="handleImageSelect(event)" />
+        <div id="image-preview-wrap" style="display:none; flex-direction:column; align-items:center;">
+          <img id="image-preview" src="" alt="Preview" />
+          <button id="clear-img-btn" onclick="clearImage(event)">✕ Remove image</button>
         </div>
-        <div class="breakdown-item">
-          <div class="breakdown-label" id="lbl-1">Language</div>
-          <div class="breakdown-val" id="bd-1">—</div>
-          <div class="bar-track"><div class="bar-fill purple" id="bar-1" style="width:0%"></div></div>
-        </div>
-        <div class="breakdown-item">
-          <div class="breakdown-label" id="lbl-2">Sentiment</div>
-          <div class="breakdown-val" id="bd-2">—</div>
-          <div class="bar-track"><div class="bar-fill teal" id="bar-2" style="width:0%"></div></div>
-        </div>
-        <div class="breakdown-item">
-          <div class="breakdown-label" id="lbl-3">Sources</div>
-          <div class="breakdown-val" id="bd-3">—</div>
-          <div class="bar-track"><div class="bar-fill blue" id="bar-3" style="width:0%"></div></div>
+        <div id="image-drop-hint">
+          🖼️ <strong>Drop an image here</strong> or click to upload<br>
+          <small>JPG · PNG · WEBP — for image fact-checking</small>
         </div>
       </div>
 
-      <div id="reasoning-wrap">
-        <button class="reasoning-toggle" onclick="toggleReasoning()">🧠 Show AI Reasoning</button>
-        <div id="reasoning-text"></div>
+      <button class="btn-check" id="check-btn" onclick="submitCheck()" disabled>Analyze Content</button>
+
+      <div class="examples">
+        <div class="examples-label">Quick examples →</div>
+        <button class="example-btn" onclick="fillExample(this.textContent.trim())">Meta has overtaken Apple to become
+          the world's most valuable company</button>
+        <button class="example-btn" onclick="fillExample(this.textContent.trim())">Drinking 10 glasses of water daily
+          can cure diabetes</button>
+        <button class="example-btn" onclick="fillExample(this.textContent.trim())">Scientists discover 95% of the ocean
+          remains unmapped</button>
       </div>
     </div>
 
-    <div class="section" id="flags-section"></div>
-    <div class="section" id="claims-section"></div>
-    <button class="btn-reset" onclick="resetUI()">← Check another</button>
-  </div>
-
-  <!-- Feature cards -->
-  <div id="feature-cards">
-    <div class="feat-card">
-      <div class="feat-icon">🤖</div>
-      <div class="feat-title">Gemini 2.5 Flash AI</div>
-      <div class="feat-desc">Deep semantic analysis of claims, language patterns, and factual consistency using Google's latest AI.</div>
+    <div id="loader">
+      <div class="spinner"></div>
+      <p>Analyzing with Gemini AI + Fact Check API…</p>
     </div>
 
-    <div class="feat-card">
-      <div class="feat-icon">🔎</div>
-      <div class="feat-title">Live Fact Checking</div>
-      <div class="feat-desc">Claims cross-referenced against Google's Fact Check Tools API database in real time.</div>
+    <div id="error-box" class="glass-panel">
+      <h3>Analysis Failed</h3>
+      <p id="error-msg">Something went wrong. Please try again.</p>
     </div>
-    <div class="feat-card">
-      <div class="feat-icon">🖼️</div>
-      <div class="feat-title">Image & Deepfake Detection</div>
-      <div class="feat-desc">Upload screenshots or photos — AI detects manipulation, deepfakes, and out-of-context imagery.</div>
+
+    <div id="results">
+      <div class="score-card card glass-panel fade-in" id="score-card">
+        <div class="score-ring-wrap">
+          <svg class="score-ring" width="170" height="170" viewBox="0 0 170 170">
+            <circle class="ring-bg" cx="85" cy="85" r="73" />
+            <circle class="ring-fill" id="ring-fill" cx="85" cy="85" r="73" stroke-dasharray="458.67"
+              stroke-dashoffset="458.67" />
+          </svg>
+          <div class="score-number" id="score-number">0<sub>/100</sub></div>
+        </div>
+
+        <div class="verdict" id="verdict-text">—</div>
+        <div id="verdict-badge"></div>
+        <div class="summary-text" id="summary-text"></div>
+
+        <div class="breakdown-grid" id="breakdown-grid">
+          <div class="breakdown-item">
+            <div class="breakdown-label" id="lbl-0">Fact Match</div>
+            <div class="breakdown-val" id="bd-0">—</div>
+            <div class="bar-track">
+              <div class="bar-fill blue" id="bar-0" style="width:0%"></div>
+            </div>
+          </div>
+          <div class="breakdown-item">
+            <div class="breakdown-label" id="lbl-1">Language</div>
+            <div class="breakdown-val" id="bd-1">—</div>
+            <div class="bar-track">
+              <div class="bar-fill purple" id="bar-1" style="width:0%"></div>
+            </div>
+          </div>
+          <div class="breakdown-item">
+            <div class="breakdown-label" id="lbl-2">Sentiment</div>
+            <div class="breakdown-val" id="bd-2">—</div>
+            <div class="bar-track">
+              <div class="bar-fill teal" id="bar-2" style="width:0%"></div>
+            </div>
+          </div>
+          <div class="breakdown-item">
+            <div class="breakdown-label" id="lbl-3">Sources</div>
+            <div class="breakdown-val" id="bd-3">—</div>
+            <div class="bar-track">
+              <div class="bar-fill blue" id="bar-3" style="width:0%"></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="reasoning-wrap">
+          <button class="reasoning-toggle" onclick="toggleReasoning()">🧠 Show AI Reasoning</button>
+          <div id="reasoning-text"></div>
+        </div>
+      </div>
+
+      <div class="section" id="flags-section"></div>
+      <div class="section" id="claims-section"></div>
+      <button class="btn-reset" onclick="resetUI()">← Check another</button>
     </div>
-  </div>
-</main>
 
-<footer>
-  Built for the 24-Hour Hackathon &nbsp;•&nbsp; Tech Titans &nbsp;•&nbsp; Powered by Gemini AI + Google Fact Check API
-</footer>
+    <div id="feature-cards">
+      <div class="feat-card glass-panel">
+        <div class="feat-icon">🧠</div>
+        <div class="feat-title">Advanced NLP Model</div>
+        <div class="feat-desc">Deep semantic analysis of claims, language patterns, and factual consistency using
+          cutting edge AI.</div>
+      </div>
 
-<script>
-  const BACKEND_URL = 'https://credibility-checker-0lr6.onrender.com';
+      <div class="feat-card glass-panel">
+        <div class="feat-icon">🌐</div>
+        <div class="feat-title">Live Fact Checking</div>
+        <div class="feat-desc">Claims cross-referenced against global Fact Check Tools & API databases in real time.
+        </div>
+      </div>
+      <div class="feat-card glass-panel">
+        <div class="feat-icon">🖼️</div>
+        <div class="feat-title">Image & Deepfake Detection</div>
+        <div class="feat-desc">Upload screenshots or photos — AI detects manipulation, deepfakes, and out-of-context
+          imagery.</div>
+      </div>
+    </div>
+  </main>
 
-  const textarea = document.getElementById('input-text');
-  const checkBtn = document.getElementById('check-btn');
-  const charCount = document.getElementById('char-count');
-  const charWarn  = document.getElementById('char-warn');
-  let imgB64 = null, imgMime = 'image/jpeg';
+  <footer>
+    Built for Content Integrity &nbsp;•&nbsp; Powered by AI + Live Fact Checking APIs
+  </footer>
 
-  textarea.addEventListener('input', syncBtn);
-  function syncBtn() {
-    const len = textarea.value.length;
-    charCount.textContent = `${len} / 5000`;
-    charWarn.style.display = len > 4500 ? 'inline' : 'none';
-    checkBtn.disabled = (len < 5 && !imgB64) || len > 5000;
-  }
-  function fillExample(t) { textarea.value = t; textarea.dispatchEvent(new Event('input')); textarea.focus(); }
+  <script>
+    const BACKEND_URL = 'https://credibility-checker-0lr6.onrender.com';
 
-  // ── Image ────────────────────────────────────────────────────────────────
-  const dropZone = document.getElementById('image-drop-zone');
-  dropZone.addEventListener('click', () => document.getElementById('image-input').click());
-  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-  dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); const f = e.dataTransfer.files[0]; if (f && f.type.startsWith('image/')) readImg(f); });
+    const textarea = document.getElementById('input-text');
+    const checkBtn = document.getElementById('check-btn');
+    const charCount = document.getElementById('char-count');
+    const charWarn = document.getElementById('char-warn');
+    let imgB64 = null, imgMime = 'image/jpeg';
 
-  function handleImageSelect(e) { const f = e.target.files[0]; if (f) readImg(f); }
-  function readImg(file) {
-    imgMime = file.type || 'image/jpeg';
-    const r = new FileReader();
-    r.onload = ev => {
-      imgB64 = ev.target.result.split(',')[1];
-      document.getElementById('image-preview').src = ev.target.result;
-      document.getElementById('image-preview-wrap').style.display = 'flex';
-      document.getElementById('image-drop-hint').style.display = 'none';
-      checkBtn.disabled = false;
-    };
-    r.readAsDataURL(file);
-  }
-  function clearImage(e) {
-    e.stopPropagation();
-    imgB64 = null;
-    document.getElementById('image-input').value = '';
-    document.getElementById('image-preview-wrap').style.display = 'none';
-    document.getElementById('image-drop-hint').style.display = 'block';
-    syncBtn();
-  }
+    textarea.addEventListener('input', syncBtn);
+    function syncBtn() {
+      const len = textarea.value.length;
+      charCount.textContent = `${len} / 5000`;
+      charWarn.style.display = len > 4500 ? 'inline' : 'none';
+      checkBtn.disabled = (len < 5 && !imgB64) || len > 5000;
+    }
+    function fillExample(t) { textarea.value = t; textarea.dispatchEvent(new Event('input')); textarea.focus(); }
 
-  // ── Submit ───────────────────────────────────────────────────────────────
-  async function submitCheck() {
-    showLoader(); hideError(); hideResults();
-    try {
-      let body;
-      if (imgB64) {
-        body = { type: 'image', image: imgB64, mime_type: imgMime };
-        if (textarea.value.trim()) body.text = textarea.value.trim();
-      } else {
-        const text = textarea.value.trim();
-        if (!text || text.length < 5) { hideLoader(); return; }
-        body = { text, type: 'text' };
-      }
-      const res = await fetch(`${BACKEND_URL}/api/score`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-      if (!res.ok) {
-        const e = await res.json().catch(() => ({}));
-        throw new Error(e.error || `Error ${res.status}: Backend issue.`);
-      }
-      const data = await res.json();
-      if (data.flags && data.flags.some(f => f.includes('Quota Exceeded'))) {
-         showError("⚠️ API Quota Exceeded. The AI is currently busy. Please add more keys or wait 1 minute.");
-      }
-      renderResults(data);
-    } catch (e) {
-      console.error(e);
-      let m = e.message || 'Could not reach the AI. Please check your internet or wait for the server to wake up.';
-      if (m.includes('Failed to fetch')) m = '🌐 Network error: The backend might be asleep or inaccessible.';
-      showError(m);
-    } finally { hideLoader(); }
+    // ── Image ────────────────────────────────────────────────────────────────
+    const dropZone = document.getElementById('image-drop-zone');
+    dropZone.addEventListener('click', () => document.getElementById('image-input').click());
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); const f = e.dataTransfer.files[0]; if (f && f.type.startsWith('image/')) readImg(f); });
 
-  }
-
-  // ── Render ───────────────────────────────────────────────────────────────
-  function renderResults(data) {
-    const score   = data.score ?? 0;
-    const bd      = data.breakdown ?? {};
-    const flags   = data.flags ?? [];
-    const claims  = data.claims ?? [];
-    const verdict = data.verdict ?? '';
-    const isImg   = data.content_type === 'image';
-
-    const cls = score >= 75 ? 'green' : score >= 50 ? 'yellow' : 'red';
-    document.getElementById('score-card').className = `score-card card fade-in ${cls}`;
-
-    // Ring
-    const fill = document.getElementById('ring-fill');
-    fill.className = `ring-fill ${cls}`;
-    fill.style.strokeDashoffset = 427.26;
-    requestAnimationFrame(() => requestAnimationFrame(() => { fill.style.strokeDashoffset = 427.26 * (1 - score / 100); }));
-    animNum('score-number', score, v => `${v}<sub>/100</sub>`);
-
-    // Verdict
-    const vmap = { green: '✅ Likely Credible', yellow: '⚠️ Uncertain', red: '❌ Likely False' };
-    const el = document.getElementById('verdict-text');
-    el.textContent = vmap[cls]; el.style.color = `var(--${cls})`;
-    document.getElementById('summary-text').textContent = data.summary ?? '';
-
-    // Verdict pill
-    const pclr = { CREDIBLE:'#10b981', LIKELY_TRUE:'#34d399', AUTHENTIC:'#10b981', LIKELY_AUTHENTIC:'#34d399',
-                   UNCERTAIN:'#f59e0b', MISLEADING:'#ef4444', LIKELY_FALSE:'#ef4444', FALSE:'#dc2626',
-                   MANIPULATED:'#dc2626', DEEPFAKE:'#dc2626' };
-    const pc = pclr[verdict] || '#8892a4';
-    document.getElementById('verdict-badge').innerHTML = verdict
-      ? `<span class="verdict-pill" style="background:${pc}22;color:${pc};border:1px solid ${pc}44">${verdict.replace(/_/g,' ')}</span>` : '';
-
-    // Breakdown bars
-    const labels = isImg
-      ? ['Authenticity','Text Claims','Context','Sources']
-      : ['Fact Match','Language','Sentiment','Sources'];
-    const vals = isImg
-      ? [bd.visual_authenticity, bd.text_credibility, bd.context_accuracy, bd.source_quality]
-      : [bd.fact_match, bd.language, bd.sentiment, bd.source_quality];
-    labels.forEach((l, i) => {
-      document.getElementById(`lbl-${i}`).textContent = l;
-      animNum(`bd-${i}`, vals[i] ?? 0, v => `${v}%`);
-      setTimeout(() => { document.getElementById(`bar-${i}`).style.width = `${vals[i] ?? 0}%`; }, 80);
-    });
-
-    // AI reasoning
-    if (data.reasoning) {
-      document.getElementById('reasoning-wrap').style.display = 'block';
-      document.getElementById('reasoning-text').textContent = data.reasoning;
-    } else {
-      document.getElementById('reasoning-wrap').style.display = 'none';
+    function handleImageSelect(e) { const f = e.target.files[0]; if (f) readImg(f); }
+    function readImg(file) {
+      imgMime = file.type || 'image/jpeg';
+      const r = new FileReader();
+      r.onload = ev => {
+        imgB64 = ev.target.result.split(',')[1];
+        document.getElementById('image-preview').src = ev.target.result;
+        document.getElementById('image-preview-wrap').style.display = 'flex';
+        document.getElementById('image-drop-hint').style.display = 'none';
+        checkBtn.disabled = false;
+      };
+      r.readAsDataURL(file);
+    }
+    function clearImage(e) {
+      e.stopPropagation();
+      imgB64 = null;
+      document.getElementById('image-input').value = '';
+      document.getElementById('image-preview-wrap').style.display = 'none';
+      document.getElementById('image-drop-hint').style.display = 'block';
+      syncBtn();
     }
 
-    // Flags
-    document.getElementById('flags-section').innerHTML = flags.length
-      ? `<div class="section-card flags fade-in"><div class="section-title">⚠️ Red Flags Detected</div>${flags.map(f => `<div class="flag-item">${esc(f)}</div>`).join('')}</div>` : '';
+    // ── Submit ───────────────────────────────────────────────────────────────
+    async function submitCheck() {
+      showLoader(); hideError(); hideResults();
+      try {
+        let body;
+        if (imgB64) {
+          body = { type: 'image', image: imgB64, mime_type: imgMime };
+          if (textarea.value.trim()) body.text = textarea.value.trim();
+        } else {
+          const text = textarea.value.trim();
+          if (!text || text.length < 5) { hideLoader(); return; }
+          body = { text, type: 'text' };
+        }
+        const res = await fetch(`${BACKEND_URL}/api/score`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        if (!res.ok) {
+          const e = await res.json().catch(() => ({}));
+          throw new Error(e.error || `Error ${res.status}: Backend issue.`);
+        }
+        const data = await res.json();
+        if (data.flags && data.flags.some(f => f.includes('Quota Exceeded'))) {
+          showError("⚠️ API Quota Exceeded. The AI is currently busy. Please add more keys or wait 1 minute.");
+        }
+        renderResults(data);
+      } catch (e) {
+        console.error(e);
+        let m = e.message || 'Could not reach the AI. Please check your internet or wait for the server to wake up.';
+        if (m.includes('Failed to fetch')) m = '🌐 Network error: The backend might be asleep or inaccessible.';
+        showError(m);
+      } finally { hideLoader(); }
 
-    // Claims
-    const claimsEl = document.getElementById('claims-section');
-    if (claims.length) {
-      claimsEl.innerHTML = `<div class="section-card claims fade-in">
+    }
+
+    // ── Render ───────────────────────────────────────────────────────────────
+    function renderResults(data) {
+      const score = data.score ?? 0;
+      const bd = data.breakdown ?? {};
+      const flags = data.flags ?? [];
+      const claims = data.claims ?? [];
+      const verdict = data.verdict ?? '';
+      const isImg = data.content_type === 'image';
+
+      const cls = score >= 75 ? 'green' : score >= 50 ? 'yellow' : 'red';
+      document.getElementById('score-card').className = `score-card card glass-panel fade-in ${cls}`;
+
+      // Ring
+      const fill = document.getElementById('ring-fill');
+      fill.className = `ring-fill ${cls}`;
+      fill.style.strokeDashoffset = 458.67;
+      requestAnimationFrame(() => requestAnimationFrame(() => { fill.style.strokeDashoffset = 458.67 * (1 - score / 100); }));
+      animNum('score-number', score, v => `${v}<sub>/100</sub>`);
+
+      // Verdict
+      const vmap = { green: '✅ Likely Credible', yellow: '⚠️ Uncertain', red: '❌ Likely False' };
+      const el = document.getElementById('verdict-text');
+      el.textContent = vmap[cls]; el.style.color = `var(--${cls})`;
+      document.getElementById('summary-text').textContent = data.summary ?? '';
+
+      // Verdict pill
+      const pclr = {
+        CREDIBLE: '#10b981', LIKELY_TRUE: '#34d399', AUTHENTIC: '#10b981', LIKELY_AUTHENTIC: '#34d399',
+        UNCERTAIN: '#f59e0b', MISLEADING: '#ef4444', LIKELY_FALSE: '#ef4444', FALSE: '#dc2626',
+        MANIPULATED: '#dc2626', DEEPFAKE: '#dc2626'
+      };
+      const pc = pclr[verdict] || '#64748b';
+      document.getElementById('verdict-badge').innerHTML = verdict
+        ? `<span class="verdict-pill" style="background:${pc}15;color:${pc};border:1px solid ${pc}33">${verdict.replace(/_/g, ' ')}</span>` : '';
+
+      // Breakdown bars
+      const labels = isImg
+        ? ['Authenticity', 'Text Claims', 'Context', 'Sources']
+        : ['Fact Match', 'Language', 'Sentiment', 'Sources'];
+      const vals = isImg
+        ? [bd.visual_authenticity, bd.text_credibility, bd.context_accuracy, bd.source_quality]
+        : [bd.fact_match, bd.language, bd.sentiment, bd.source_quality];
+      labels.forEach((l, i) => {
+        document.getElementById(`lbl-${i}`).textContent = l;
+        animNum(`bd-${i}`, vals[i] ?? 0, v => `${v}%`);
+        setTimeout(() => { document.getElementById(`bar-${i}`).style.width = `${vals[i] ?? 0}%`; }, 80);
+      });
+
+      // AI reasoning
+      if (data.reasoning) {
+        document.getElementById('reasoning-wrap').style.display = 'block';
+        document.getElementById('reasoning-text').textContent = data.reasoning;
+      } else {
+        document.getElementById('reasoning-wrap').style.display = 'none';
+      }
+
+      // Flags
+      document.getElementById('flags-section').innerHTML = flags.length
+        ? `<div class="section-card flags glass-panel fade-in"><div class="section-title">⚠️ Red Flags Detected</div>${flags.map(f => `<div class="flag-item">${esc(f)}</div>`).join('')}</div>` : '';
+
+      // Claims
+      const claimsEl = document.getElementById('claims-section');
+      if (claims.length) {
+        claimsEl.innerHTML = `<div class="section-card claims glass-panel fade-in">
         <div class="section-title">📌 ${isImg ? 'Visual Claims' : 'Claims Detected'} (${claims.length})</div>
-        ${claims.slice(0,5).map(c => `<div class="claim-chip">
+        ${claims.slice(0, 5).map(c => `<div class="claim-chip">
           <span class="claim-text">${esc(c.text)}</span>
           <span class="claim-type-badge">${esc(c.type ?? '')}</span>
           ${c.verified ? `<span class="verified-badge">${c.rating ? '✓ ' + esc(c.rating) : '✓ Verified'}</span>` : ''}
         </div>`).join('')}
         ${claims.length > 5 ? `<p style="font-size:0.78rem;color:var(--muted);margin-top:7px">…and ${claims.length - 5} more</p>` : ''}
       </div>`;
-    } else if (!flags.length) {
-      claimsEl.innerHTML = `<div class="section-card empty fade-in">No major red flags or claims detected.</div>`;
-    } else {
-      claimsEl.innerHTML = '';
+      } else if (!flags.length) {
+        claimsEl.innerHTML = `<div class="section-card empty glass-panel fade-in">No major red flags or claims detected.</div>`;
+      } else {
+        claimsEl.innerHTML = '';
+      }
+
+      document.getElementById('results').style.display = 'block';
+      document.getElementById('feature-cards').style.display = 'none';
+      document.getElementById('input-card').style.display = 'none';
     }
 
-    document.getElementById('results').style.display = 'block';
-    document.getElementById('feature-cards').style.display = 'none';
-    document.getElementById('input-card').style.display = 'none';
-  }
+    function toggleReasoning() {
+      const t = document.getElementById('reasoning-text');
+      const b = document.querySelector('.reasoning-toggle');
+      const show = t.style.display === 'none' || !t.style.display;
+      t.style.display = show ? 'block' : 'none';
+      b.textContent = show ? '🧠 Hide AI Reasoning' : '🧠 Show AI Reasoning';
+    }
 
-  function toggleReasoning() {
-    const t = document.getElementById('reasoning-text');
-    const b = document.querySelector('.reasoning-toggle');
-    const show = t.style.display === 'none' || !t.style.display;
-    t.style.display = show ? 'block' : 'none';
-    b.textContent = show ? '🧠 Hide AI Reasoning' : '🧠 Show AI Reasoning';
-  }
+    function resetUI() {
+      document.getElementById('results').style.display = 'none';
+      document.getElementById('feature-cards').style.display = 'grid';
+      document.getElementById('input-card').style.display = 'block';
+      hideError(); textarea.value = '';
+      clearImage({ stopPropagation: () => { } });
+      syncBtn();
+    }
 
-  function resetUI() {
-    document.getElementById('results').style.display = 'none';
-    document.getElementById('feature-cards').style.display = 'grid';
-    document.getElementById('input-card').style.display = 'block';
-    hideError(); textarea.value = '';
-    clearImage({ stopPropagation: () => {} });
-    syncBtn();
-  }
-
-  function showLoader()  { document.getElementById('loader').style.display = 'block'; checkBtn.disabled = true; }
-  function hideLoader()  { document.getElementById('loader').style.display = 'none';  checkBtn.disabled = false; }
-  function showError(m)  { document.getElementById('error-box').style.display = 'block'; document.getElementById('error-msg').textContent = m; }
-  function hideError()   { document.getElementById('error-box').style.display = 'none'; }
-  function hideResults() { document.getElementById('results').style.display = 'none'; }
-  function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-  function animNum(id, target, fmt) {
-    const el = document.getElementById(id);
-    const dur = 900, t0 = performance.now();
-    (function step(now) {
-      const p = Math.min((now - t0) / dur, 1);
-      el.innerHTML = fmt(Math.round((1 - Math.pow(1 - p, 3)) * target));
-      if (p < 1) requestAnimationFrame(step);
-    })(t0);
-  }
-</script>
+    function showLoader() { document.getElementById('loader').style.display = 'block'; checkBtn.disabled = true; }
+    function hideLoader() { document.getElementById('loader').style.display = 'none'; checkBtn.disabled = false; }
+    function showError(m) { document.getElementById('error-box').style.display = 'block'; document.getElementById('error-msg').textContent = m; }
+    function hideError() { document.getElementById('error-box').style.display = 'none'; }
+    function hideResults() { document.getElementById('results').style.display = 'none'; }
+    function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+    function animNum(id, target, fmt) {
+      const el = document.getElementById(id);
+      const dur = 900, t0 = performance.now();
+      (function step(now) {
+        const p = Math.min((now - t0) / dur, 1);
+        el.innerHTML = fmt(Math.round((1 - Math.pow(1 - p, 3)) * target));
+        if (p < 1) requestAnimationFrame(step);
+      })(t0);
+    }
+  </script>
 </body>
+
 </html>
