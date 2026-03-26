@@ -126,18 +126,35 @@ def _analyze_text_gemini(client, text):
         config=genai_types.GenerateContentConfig(temperature=0.0, max_output_tokens=1000)
     )
     raw = resp.text.strip()
-    if '```json' in raw: raw = raw.split('```json')[1].split('```')[0].strip()
-    elif '```' in raw: raw = raw.split('```')[1].split('```')[0].strip()
     
-    data = json.loads(raw)
-    return {
-        "score": int(data.get('score', 50)),
-        "verdict": data.get('verdict', 'UNCERTAIN'),
-        "summary": data.get('summary', ''),
-        "reasoning": data.get('reasoning', ''),
-        "flags": data.get('flags', []),
-        "claims": [] # Client requested clean format
-    }
+    # Robust JSON extraction
+    try:
+        if '```json' in raw: raw = raw.split('```json')[1].split('```')[0].strip()
+        elif '```' in raw: raw = raw.split('```')[1].split('```')[0].strip()
+        
+        # Handle cases where AI adds text before/after JSON
+        start = raw.find('{')
+        end = raw.rfind('}')
+        if start != -1 and end != -1:
+            raw = raw[start:end+1]
+            
+        data = json.loads(raw, strict=False) # strict=False allows control characters/newlines
+        return {
+            "score": int(data.get('score', 50)),
+            "verdict": str(data.get('verdict', 'UNCERTAIN')),
+            "summary": str(data.get('summary', '')),
+            "reasoning": str(data.get('reasoning', '')),
+            "flags": list(data.get('flags', [])),
+            "claims": []
+        }
+    except Exception as e:
+        print(f"Gemini JSON Parsing error: {e}")
+        return {
+            "score": 50, "verdict": "UNCERTAIN", 
+            "summary": "AI response was complex. Checking external registries...",
+            "reasoning": raw[:500], "flags": ["Complex Analysis"], "claims": []
+        }
+
 
 def _analyze_image(client, image_data, mime_type="image/jpeg"):
     if isinstance(image_data, str): image_bytes = base64.b64decode(image_data)
