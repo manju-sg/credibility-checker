@@ -1,5 +1,6 @@
 import os
 import json
+import base64
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -10,99 +11,110 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
+
 @app.route('/api/score', methods=['POST'])
 def score_content():
     """
-    POST endpoint to score content credibility.
-    
-    Request body:
+    POST /api/score
+    Supports text and image (base64) analysis.
+
+    Body (JSON):
     {
-      "text": "string content to analyze",
-      "type": "text|image|video"  (optional, default: "text")
-    }
-    
-    Response:
-    {
-      "score": 0-100,
-      "breakdown": {
-        "fact_match": 0-100,
-        "language": 0-100,
-        "sentiment": 0-100
-      },
-      "claims": [{"text": "...", "type": "...", "verified": bool}],
-      "flags": ["flag1", "flag2"],
-      "summary": "string explanation"
+      "text": "...",            // for text analysis
+      "type": "text",           // "text" or "image"
+      "image": "<base64>",      // for image analysis
+      "mime_type": "image/jpeg" // optional, default image/jpeg
     }
     """
     try:
-        data = request.get_json()
+        data = request.get_json(force=True)
         if not data:
             return jsonify({"error": "No JSON body provided"}), 400
-        
-        text = data.get('text', '').strip()
+
         content_type = data.get('type', 'text')
-        
+
+        # ── Image analysis ──────────────────────────────────────────────────
+        if content_type == 'image':
+            image_b64 = data.get('image', '').strip()
+            if not image_b64:
+                return jsonify({"error": "image field (base64) is required for type=image"}), 400
+            mime = data.get('mime_type', 'image/jpeg')
+            result = calculate_credibility_score(text='', image_data=image_b64, image_mime=mime)
+            return jsonify(result), 200
+
+        # ── Text analysis ───────────────────────────────────────────────────
+        text = data.get('text', '').strip()
         if not text:
-            return jsonify({"error": "Text field is required and cannot be empty"}), 400
-        
+            return jsonify({"error": "text field is required and cannot be empty"}), 400
         if len(text) > 5000:
             return jsonify({"error": "Text exceeds 5000 characters"}), 400
-        
-        if content_type == 'text':
-            result = calculate_credibility_score(text)
-            return jsonify(result), 200
-        else:
-            return jsonify({"error": f"Content type '{content_type}' not yet implemented"}), 501
-    
+
+        result = calculate_credibility_score(text)
+        return jsonify(result), 200
+
     except Exception as e:
-        print(f"Error in /api/score: {str(e)}")
+        print(f"Error in /api/score: {e}")
         return jsonify({"error": f"Server error: {str(e)}"}), 500
+
 
 @app.route('/api/whatsapp', methods=['POST'])
 def whatsapp_webhook():
     """
-    Twilio WhatsApp webhook endpoint.
-    Receives incoming messages and returns credibility score.
+    Twilio WhatsApp webhook — handles both text and image messages.
     """
     try:
+        from twilio.twiml.messaging_response import MessagingResponse
+        resp = MessagingResponse()
+
         form_data = request.form
-        incoming_msg = form_data.get('Body', '').strip()
-        
-        if not incoming_msg:
-            response_text = "Please send me some text to check!"
+        incoming_msg  = form_data.get('Body', '').strip()
+        num_media     = int(form_data.get('NumMedia', 0))
+        media_url     = form_data.get('MediaUrl0', '')
+        media_type    = form_data.get('MediaContentType0', 'image/jpeg')
+
+        if num_media > 0 and media_url:
+            # Download image and analyse
+            response_text = handle_whatsapp_message(
+                text=incoming_msg or '[Image sent]',
+                media_url=media_url,
+                media_type=media_type
+            )
+        elif incoming_msg:
+            response_text = handle_whatsapp_message(text=incoming_msg)
         else:
-            response_text = handle_whatsapp_message(incoming_msg)
-        
-        # Build Twilio XML response
-        from twilio.twiml.messaging_response import MessagingResponse
-        resp = MessagingResponse()
+            response_text = (
+                "👋 Hi! Send me any *text, headline, or image* to check its credibility.\n\n"
+                "I'll give you an AI-powered score instantly! 🔍"
+            )
+
         resp.message(response_text)
-        return str(resp), 200
-    
+        return str(resp), 200, {'Content-Type': 'text/xml'}
+
     except Exception as e:
-        print(f"WhatsApp webhook error: {str(e)}")
+        print(f"WhatsApp webhook error: {e}")
         from twilio.twiml.messaging_response import MessagingResponse
-        resp = MessagingResponse()
-        resp.message("Error processing your request. Please try again.")
-        return str(resp), 500
+        r = MessagingResponse()
+        r.message("⚠️ Error processing your request. Please try again.")
+        return str(r), 500, {'Content-Type': 'text/xml'}
+
 
 @app.route('/health', methods=['GET'])
 def health():
-    """Health check endpoint"""
-    return jsonify({"status": "ok", "service": "credibility-checker"}), 200
+    return jsonify({"status": "ok", "service": "credibility-checker", "ai": "gemini-2.0-flash"}), 200
+
 
 @app.route('/', methods=['GET'])
 def index():
-    """Root endpoint with API info"""
     return jsonify({
-        "name": "Credibility Checker API",
-        "version": "1.0.0",
+        "name": "Credibility Checker API (Gemini-powered)",
+        "version": "2.0.0",
         "endpoints": {
-            "POST /api/score": "Score content credibility",
-            "POST /api/whatsapp": "WhatsApp webhook",
+            "POST /api/score": "Score text or image credibility",
+            "POST /api/whatsapp": "WhatsApp webhook (text + images)",
             "GET /health": "Health check"
         }
     }), 200
+
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))

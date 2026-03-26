@@ -1,318 +1,359 @@
 import os
 import requests
+import json
+import base64
+from datetime import datetime
 from textblob import TextBlob
 import spacy
-import json
-from datetime import datetime
+
+# ── Gemini setup ──────────────────────────────────────────────────────────────
+try:
+    import google.generativeai as genai
+    GEMINI_API_KEY = os.getenv('GOOGLE_FACT_CHECK_API_KEY', '')  # reuse same key
+    if GEMINI_API_KEY:
+        genai.configure(api_key=GEMINI_API_KEY)
+        gemini_model = genai.GenerativeModel('gemini-2.0-flash')
+    else:
+        gemini_model = None
+except Exception as e:
+    print(f"Gemini init error: {e}")
+    gemini_model = None
+
+# ── spaCy NER ─────────────────────────────────────────────────────────────────
+try:
+    nlp = spacy.load('en_core_web_sm')
+except:
+    nlp = None
 
 GOOGLE_FACT_CHECK_API_KEY = os.getenv('GOOGLE_FACT_CHECK_API_KEY', '')
-nlp = spacy.load('en_core_web_sm')
+CREDIBILITY_CACHE = {}
 
-CREDIBILITY_CACHE = {}  # Simple in-memory cache
+# ── Gemini prompts ────────────────────────────────────────────────────────────
+TEXT_ANALYSIS_PROMPT = """You are a world-class fact-checker and misinformation analyst with expertise in journalism, critical thinking, and source verification.
 
-def calculate_credibility_score(text):
+Analyze the following content DEEPLY and return a JSON credibility assessment.
+
+CONTENT TO ANALYZE:
+\"\"\"{content}\"\"\"
+
+Evaluate these dimensions:
+1. **Fact Match** (0-100): How well-supported are the claims by known facts? Are there verifiable sources implied?
+2. **Language Quality** (0-100): Is the language neutral/objective (high) or sensationalist/emotional/clickbait (low)?
+3. **Sentiment** (0-100): Higher = more neutral/balanced reporting. Lower = extreme bias or emotional manipulation.
+4. **Source Quality** (0-100): Are credible sources cited/implied? Expert quotes? Data/statistics referenced properly?
+
+Red flags to look for:
+- ALL CAPS, excessive exclamation marks, clickbait phrases
+- Conspiracy language ("they don't want you to know", "hidden truth")
+- Missing sources for specific statistics or events
+- Logical fallacies or circular reasoning
+- Known misinformation patterns (miracle cures, election fraud, vaccine claims)
+- Vague attribution ("some say", "experts claim" without naming them)
+- Emotionally manipulative language designed to provoke fear/anger/outrage
+
+Return ONLY this JSON (no markdown, no explanation):
+{{
+  "score": <overall credibility 0-100>,
+  "breakdown": {{
+    "fact_match": <0-100>,
+    "language": <0-100>,
+    "sentiment": <0-100>,
+    "source_quality": <0-100>
+  }},
+  "claims": [
+    {{"text": "<specific factual claim>", "type": "<PERSON|ORG|GPE|STATISTIC|MEDICAL|POLITICAL|CLAIM>", "verified": <true/false>, "confidence": <0.0-1.0>}}
+  ],
+  "flags": ["<specific red flag found>"],
+  "verdict": "<CREDIBLE|LIKELY_TRUE|UNCERTAIN|MISLEADING|LIKELY_FALSE|FALSE>",
+  "summary": "<2-3 sentences explaining the overall assessment>",
+  "reasoning": "<detailed paragraph explaining the key factors in your judgment>"
+}}"""
+
+IMAGE_ANALYSIS_PROMPT = """You are an expert in detecting misinformation, manipulated media, deepfakes, and misleading visual content.
+
+Analyze this image for credibility and authenticity. Look for:
+
+1. **Visual Authenticity** (0-100): Signs of manipulation, deepfake artifacts, inconsistent lighting/shadows, unnatural edges, splice marks
+2. **Text Credibility** (0-100): Any text/captions in the image — are the claims accurate?
+3. **Context Accuracy** (0-100): Does the image appear to be used in proper context? Is it old/recycled footage presented as new?
+4. **Source Quality** (0-100): Are there watermarks, logos, or attribution visible?
+
+Return ONLY this JSON (no markdown):
+{{
+  "score": <overall credibility 0-100>,
+  "breakdown": {{
+    "visual_authenticity": <0-100>,
+    "text_credibility": <0-100>,
+    "context_accuracy": <0-100>,
+    "source_quality": <0-100>
+  }},
+  "claims": [
+    {{"text": "<text found in image or visual claim>", "type": "VISUAL_CLAIM", "verified": false, "confidence": 0.7}}
+  ],
+  "flags": ["<specific issue detected>"],
+  "verdict": "<AUTHENTIC|LIKELY_AUTHENTIC|UNCERTAIN|LIKELY_MANIPULATED|MANIPULATED|DEEPFAKE>",
+  "summary": "<2-3 sentences explaining the visual analysis>",
+  "reasoning": "<detailed analysis of what you found>"
+}}"""
+
+
+def calculate_credibility_score(text, image_data=None, image_mime="image/jpeg"):
     """
-    Main scoring function.
-    
-    Combines multiple signals:
-    - Fact-check database matching (45%)
-    - Language quality analysis (25%)
-    - Sentiment analysis (20%)
-    - Red flag detection (10%)
-    
-    Returns dict with score (0-100) and detailed breakdown.
+    Master scoring function.
+    - Uses Gemini 2.0 Flash for deep AI analysis
+    - Augments with Google Fact Check API results
+    - Falls back to NLP if Gemini unavailable
     """
     try:
-        # 1. Extract claims
-        claims = extract_claims(text)
-        
-        # 2. Fact-check claims
-        fact_match_score = check_claims_against_db(claims, text)
-        
-        # 3. Analyze language patterns
-        language_score = analyze_language(text)
-        
-        # 4. Sentiment analysis
-        sentiment_score = analyze_sentiment(text)
-        
-        # 5. Red flags
-        flags = detect_red_flags(text)
-        red_flag_penalty = len(flags) * 10  # Each flag: -10 points
-        
-        # 6. Aggregate scores
-        final_score = (
-            0.45 * fact_match_score +
-            0.25 * language_score +
-            0.20 * sentiment_score +
-            0.10 * max(0, 100 - red_flag_penalty)
-        )
-        
-        final_score = int(max(0, min(100, final_score)))
-        
-        # 7. Generate summary
-        summary = generate_summary(final_score, flags, claims)
-        
-        return {
-            "score": final_score,
-            "breakdown": {
-                "fact_match": int(fact_match_score),
-                "language": int(language_score),
-                "sentiment": int(sentiment_score)
-            },
-            "claims": claims[:5],  # Return top 5 claims
-            "flags": flags[:3],     # Return top 3 flags
-            "summary": summary
-        }
-    
-    except Exception as e:
-        print(f"Error in calculate_credibility_score: {str(e)}")
-        return {
-            "score": 50,
-            "breakdown": {"fact_match": 50, "language": 50, "sentiment": 50},
-            "claims": [],
-            "flags": ["Analysis error"],
-            "summary": "Unable to fully analyze content. Try a shorter text."
-        }
+        if image_data:
+            return _analyze_image(image_data, image_mime)
 
-def extract_claims(text):
-    """
-    Extract factual claims using spaCy NER.
-    
-    Returns list of claims with metadata.
-    """
+        # Try Gemini first
+        result = None
+        if gemini_model:
+            result = _analyze_text_gemini(text)
+
+        if not result:
+            result = _fallback_nlp_scoring(text)
+
+        # Augment with Google Fact Check API
+        if GOOGLE_FACT_CHECK_API_KEY:
+            fact_data = _check_google_fact_api(text)
+            if fact_data['false_count'] > 0:
+                penalty = fact_data['false_count'] * 12
+                result['score'] = max(0, result['score'] - penalty)
+                result['flags'].append(f"Fact-checkers flagged {fact_data['false_count']} false claim(s)")
+            if fact_data['true_count'] > 0:
+                bonus = fact_data['true_count'] * 5
+                result['score'] = min(100, result['score'] + bonus)
+            for check in fact_data['checks'][:2]:
+                result['claims'].append({
+                    "text": check['claim'][:120],
+                    "type": "FACT_CHECKED",
+                    "verified": True,
+                    "rating": check['rating'],
+                    "publisher": check['publisher'],
+                    "confidence": 0.95
+                })
+
+        return result
+
+    except Exception as e:
+        print(f"Scoring error: {e}")
+        return _error_result()
+
+
+# ── Gemini text analysis ──────────────────────────────────────────────────────
+def _analyze_text_gemini(text):
+    """Deep text analysis using Gemini 2.0 Flash"""
     try:
-        doc = nlp(text)
-        claims = []
-        seen_texts = set()
-        
-        # Extract named entities
-        for ent in doc.ents:
-            if ent.label_ in ['PERSON', 'ORG', 'GPE', 'PRODUCT', 'EVENT', 'DATE', 'FAC']:
-                claim_text = ent.text.strip()
-                if claim_text and claim_text not in seen_texts and len(claim_text) > 2:
-                    claims.append({
-                        "text": claim_text,
-                        "type": ent.label_,
-                        "verified": False,
-                        "confidence": 0.7
-                    })
-                    seen_texts.add(claim_text)
-        
-        # Extract numerical claims (percentages, numbers in context)
-        for token in doc:
-            if token.like_num:
-                context = " ".join([t.text for t in doc[max(0, token.i-2):min(len(doc), token.i+3)]])
-                if context not in seen_texts and len(context) > 5:
-                    claims.append({
-                        "text": context,
-                        "type": "QUANTITY",
-                        "verified": False,
-                        "confidence": 0.6
-                    })
-                    seen_texts.add(context)
-        
-        return claims[:10]  # Limit to 10 claims
-    
-    except Exception as e:
-        print(f"Error in extract_claims: {str(e)}")
-        return []
-
-def check_claims_against_db(claims, original_text):
-    """
-    Check claims against Google Fact Check API.
-    
-    Returns credibility score (0-100) based on fact-check matches.
-    """
-    if not GOOGLE_FACT_CHECK_API_KEY or not claims:
-        return 70  # Default neutral score
-    
-    verified_true = 0
-    verified_false = 0
-    total_checks = 0
-    
-    for claim in claims[:3]:  # Check top 3 claims to save API quota
-        try:
-            cache_key = claim['text'].lower()
-            
-            # Check cache first
-            if cache_key in CREDIBILITY_CACHE:
-                cached = CREDIBILITY_CACHE[cache_key]
-                if cached['rating'].lower() in ['true', 'mostly true']:
-                    verified_true += 1
-                elif cached['rating'].lower() in ['false', 'mostly false']:
-                    verified_false += 1
-                total_checks += 1
-                continue
-            
-            # Query Google Fact Check API
-            response = requests.get(
-                'https://factcheckapi.googleapis.com/v1alpha1/claims:search',
-                params={
-                    'query': claim['text'][:100],  # API limit
-                    'key': GOOGLE_FACT_CHECK_API_KEY
-                },
-                timeout=3
+        prompt = TEXT_ANALYSIS_PROMPT.format(content=text[:4500])
+        response = gemini_model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(
+                temperature=0.1,
+                max_output_tokens=1500,
             )
-            
-            if response.status_code == 200:
-                data = response.json()
-                if data.get('claims'):
-                    review = data['claims'][0].get('claimReview', [{}])[0]
-                    rating = review.get('textualRating', 'unknown').lower()
-                    
-                    # Cache the result
-                    CREDIBILITY_CACHE[cache_key] = {
-                        'rating': rating,
-                        'timestamp': datetime.now().isoformat()
-                    }
-                    
-                    if rating in ['true', 'mostly true']:
-                        verified_true += 1
-                    elif rating in ['false', 'mostly false']:
-                        verified_false += 1
-                    
-                    total_checks += 1
-                    claim['verified'] = True
-        
-        except requests.exceptions.Timeout:
-            print("Fact check API timeout")
+        )
+        raw = response.text.strip()
+        # Strip markdown code fences if present
+        if '```json' in raw:
+            raw = raw.split('```json')[1].split('```')[0].strip()
+        elif '```' in raw:
+            raw = raw.split('```')[1].split('```')[0].strip()
+
+        data = json.loads(raw)
+        score = max(0, min(100, int(data.get('score', 50))))
+        bd = data.get('breakdown', {})
+
+        return {
+            "score": score,
+            "breakdown": {
+                "fact_match":     max(0, min(100, int(bd.get('fact_match', 50)))),
+                "language":       max(0, min(100, int(bd.get('language', 50)))),
+                "sentiment":      max(0, min(100, int(bd.get('sentiment', 50)))),
+                "source_quality": max(0, min(100, int(bd.get('source_quality', 50)))),
+            },
+            "claims":    data.get('claims', [])[:6],
+            "flags":     data.get('flags', [])[:6],
+            "verdict":   data.get('verdict', 'UNCERTAIN'),
+            "summary":   data.get('summary', ''),
+            "reasoning": data.get('reasoning', ''),
+        }
+    except Exception as e:
+        print(f"Gemini text analysis error: {e}")
+        return None
+
+
+# ── Gemini image analysis ─────────────────────────────────────────────────────
+def _analyze_image(image_data, mime_type="image/jpeg"):
+    """Analyze image using Gemini multimodal"""
+    if not gemini_model:
+        return {
+            "score": 50, "content_type": "image",
+            "breakdown": {"visual_authenticity": 50, "text_credibility": 50, "context_accuracy": 50, "source_quality": 50},
+            "claims": [], "flags": ["Gemini API not configured — cannot analyze images"],
+            "verdict": "UNCERTAIN", "summary": "Image analysis requires a valid Gemini API key.", "reasoning": ""
+        }
+    try:
+        if isinstance(image_data, bytes):
+            b64 = base64.b64encode(image_data).decode()
+        else:
+            b64 = image_data  # already base64
+
+        image_part = {"inline_data": {"mime_type": mime_type, "data": b64}}
+        response = gemini_model.generate_content(
+            [IMAGE_ANALYSIS_PROMPT, image_part],
+            generation_config=genai.types.GenerationConfig(temperature=0.1, max_output_tokens=1200)
+        )
+        raw = response.text.strip()
+        if '```json' in raw:
+            raw = raw.split('```json')[1].split('```')[0].strip()
+        elif '```' in raw:
+            raw = raw.split('```')[1].split('```')[0].strip()
+
+        data = json.loads(raw)
+        score = max(0, min(100, int(data.get('score', 50))))
+        return {
+            "score": score,
+            "content_type": "image",
+            "breakdown": data.get('breakdown', {}),
+            "claims":    data.get('claims', [])[:5],
+            "flags":     data.get('flags', [])[:5],
+            "verdict":   data.get('verdict', 'UNCERTAIN'),
+            "summary":   data.get('summary', ''),
+            "reasoning": data.get('reasoning', ''),
+        }
+    except Exception as e:
+        print(f"Image analysis error: {e}")
+        return {
+            "score": 50, "content_type": "image",
+            "breakdown": {}, "claims": [], "flags": [f"Image analysis error: {str(e)[:80]}"],
+            "verdict": "UNCERTAIN", "summary": "Could not fully analyze image.", "reasoning": ""
+        }
+
+
+# ── Google Fact Check API ─────────────────────────────────────────────────────
+def _check_google_fact_api(text):
+    """Query Google Fact Check API for claims in the text"""
+    result = {"checks": [], "true_count": 0, "false_count": 0}
+    queries = set()
+
+    # Extract named entities for targeted queries
+    if nlp:
+        try:
+            doc = nlp(text[:600])
+            for ent in doc.ents:
+                if ent.label_ in ['PERSON', 'ORG', 'GPE', 'EVENT']:
+                    queries.add(ent.text.strip())
+        except:
+            pass
+
+    queries.add(text[:120])  # also query with the raw text start
+    queries = list(queries)[:3]
+
+    for query in queries:
+        cache_key = query.lower().strip()
+        if cache_key in CREDIBILITY_CACHE:
+            cached = CREDIBILITY_CACHE[cache_key]
+            result['checks'].extend(cached.get('checks', []))
+            result['true_count'] += cached.get('true_count', 0)
+            result['false_count'] += cached.get('false_count', 0)
+            continue
+        try:
+            resp = requests.get(
+                'https://factcheckapi.googleapis.com/v1alpha1/claims:search',
+                params={'query': query[:100], 'key': GOOGLE_FACT_CHECK_API_KEY, 'pageSize': 3},
+                timeout=4
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                local = {"checks": [], "true_count": 0, "false_count": 0}
+                for claim in data.get('claims', []):
+                    for review in claim.get('claimReview', []):
+                        rating = review.get('textualRating', '').lower()
+                        check = {
+                            'claim':     claim.get('text', '')[:120],
+                            'rating':    rating,
+                            'publisher': review.get('publisher', {}).get('name', 'Unknown'),
+                            'url':       review.get('url', '')
+                        }
+                        local['checks'].append(check)
+                        if any(t in rating for t in ['true', 'mostly true', 'correct', 'accurate']):
+                            local['true_count'] += 1
+                        elif any(f in rating for f in ['false', 'incorrect', 'misleading', 'pants', 'wrong', 'inaccurate']):
+                            local['false_count'] += 1
+
+                CREDIBILITY_CACHE[cache_key] = local
+                result['checks'].extend(local['checks'])
+                result['true_count'] += local['true_count']
+                result['false_count'] += local['false_count']
         except Exception as e:
-            print(f"Error checking claim '{claim['text']}': {str(e)}")
-    
-    # Calculate score: more true claims = higher score
-    if total_checks == 0:
-        return 70  # No fact-checks found
-    
-    score = ((verified_true / total_checks) * 100) - (verified_false * 20)
-    return max(0, min(100, score))
+            print(f"Fact check API error: {e}")
 
-def analyze_language(text):
-    """
-    Analyze language quality and patterns.
-    
-    Red flags:
-    - ALL CAPS text
-    - Excessive punctuation
-    - Sensationalist words
-    - Vague claims
-    """
-    score = 100
-    
-    # Check for ALL CAPS
-    caps_words = [w for w in text.split() if w.isupper() and len(w) > 1]
-    if len(caps_words) > len(text.split()) * 0.3:
-        score -= 30
-    
-    # Check for excessive punctuation
-    if text.count('!') > 3 or text.count('?') > 3:
-        score -= 20
-    
-    # Sensationalist keywords
-    sensational_words = [
-        'shocking', 'breaking', 'exclusive', 'stunning',
-        'unbelievable', 'must read', 'you wont believe', 'exposé'
-    ]
-    for word in sensational_words:
-        if word.lower() in text.lower():
-            score -= 15
-            break
-    
-    # Check for proper nouns and structure
-    doc = nlp(text)
-    noun_ratio = sum(1 for token in doc if token.pos_ in ['NOUN', 'PROPN']) / len(doc) if len(doc) > 0 else 0
-    if noun_ratio < 0.1:
-        score -= 10  # Too vague
-    
-    return max(0, min(100, score))
+    return result
 
-def analyze_sentiment(text):
-    """
-    Analyze sentiment. Extreme sentiment = lower credibility.
-    
-    Neutral sentiment indicates more objective reporting.
-    """
+
+# ── NLP fallback ──────────────────────────────────────────────────────────────
+def _fallback_nlp_scoring(text):
+    """Rule-based NLP scoring when Gemini is unavailable"""
     try:
         blob = TextBlob(text)
         polarity = blob.sentiment.polarity
         subjectivity = blob.sentiment.subjectivity
-        
-        # Neutral polarity is more credible
-        if -0.15 < polarity < 0.15:
-            polarity_score = 90
-        elif -0.4 < polarity < 0.4:
-            polarity_score = 75
-        else:
-            polarity_score = 55
-        
-        # Lower subjectivity is more credible
-        if subjectivity < 0.4:
-            subjectivity_score = 95
-        elif subjectivity < 0.6:
-            subjectivity_score = 75
-        else:
-            subjectivity_score = 55
-        
-        return (polarity_score * 0.5) + (subjectivity_score * 0.5)
-    
-    except Exception as e:
-        print(f"Sentiment analysis error: {str(e)}")
-        return 70
 
-def detect_red_flags(text):
-    """
-    Detect common misinformation red flags.
-    
-    Returns list of flags found.
-    """
-    flags = []
-    
-    if len(text) < 20:
-        flags.append("Content too short to analyze thoroughly")
-    
-    if len(text) > 3000:
-        flags.append("Very long content - may contain mixed claims")
-    
-    if '!!!' in text or '???' in text:
-        flags.append("Excessive punctuation detected")
-    
-    if text.count('\n') > 10:
-        flags.append("Fragmented text structure")
-    
-    # Check for emotional triggers
-    emotional_words = ['hate', 'love', 'disgusting', 'amazing', 'incredible']
-    if any(word in text.lower() for word in emotional_words):
-        flags.append("Emotional language detected")
-    
-    # Check for vagueness
-    vague_words = ['allegedly', 'rumor', 'apparently', 'supposedly', 'might be']
-    if any(phrase in text.lower() for phrase in vague_words):
-        flags.append("Unverified claims detected")
-    
-    # Check for lack of sources
-    if not any(pattern in text.lower() for pattern in ['according to', 'source', 'study', 'research']):
-        if len(text.split()) > 50:
-            flags.append("No sources cited")
-    
-    return flags
+        lang_score = 100
+        sensational = ['shocking', 'breaking', 'unbelievable', 'miracle', 'exposed',
+                       'they don\'t want', 'hidden truth', 'wake up', 'share before deleted']
+        if any(w in text.lower() for w in sensational):
+            lang_score -= 25
+        caps_ratio = sum(1 for w in text.split() if w.isupper() and len(w) > 2) / max(len(text.split()), 1)
+        if caps_ratio > 0.3:
+            lang_score -= 30
+        if text.count('!') > 3:
+            lang_score -= 15
+
+        sent_score = 90 if abs(polarity) < 0.15 else 75 if abs(polarity) < 0.4 else 50
+        src_score = 75 if any(p in text.lower() for p in ['according to', 'study shows', 'research', 'source:', 'per ', 'citing']) else 40
+
+        flags = []
+        if subjectivity > 0.65:
+            flags.append("Highly subjective language detected")
+        if src_score < 50:
+            flags.append("No credible sources cited")
+        if caps_ratio > 0.2:
+            flags.append("Excessive use of CAPS — common in sensationalist content")
+
+        final = int(lang_score * 0.35 + sent_score * 0.25 + src_score * 0.25 + 60 * 0.15)
+        final = max(0, min(100, final))
+        verdict = 'CREDIBLE' if final >= 75 else 'UNCERTAIN' if final >= 50 else 'MISLEADING'
+        emoji = '✅' if final >= 75 else '⚠️' if final >= 50 else '❌'
+
+        return {
+            "score": final,
+            "breakdown": {"fact_match": 50, "language": lang_score, "sentiment": sent_score, "source_quality": src_score},
+            "claims": [], "flags": flags, "verdict": verdict,
+            "summary": f"{emoji} Content appears {verdict.lower()}. (Basic NLP analysis — Gemini unavailable)",
+            "reasoning": ""
+        }
+    except Exception as e:
+        return _error_result()
+
+
+def _error_result():
+    return {
+        "score": 50,
+        "breakdown": {"fact_match": 50, "language": 50, "sentiment": 50, "source_quality": 50},
+        "claims": [], "flags": ["Analysis error — please try again"],
+        "verdict": "UNCERTAIN", "summary": "Unable to fully analyze content.", "reasoning": ""
+    }
+
+
+# ── Legacy compatibility ───────────────────────────────────────────────────────
+def extract_claims(text):
+    return []
 
 def generate_summary(score, flags, claims):
-    """Generate a human-readable summary of the analysis"""
-    if score >= 75:
-        credibility = "likely credible"
-        emoji = "✅"
-    elif score >= 50:
-        credibility = "uncertain or mixed"
-        emoji = "⚠️"
-    else:
-        credibility = "likely false or misleading"
-        emoji = "❌"
-    
-    summary = f"{emoji} This content appears {credibility}. "
-    
-    if flags:
-        summary += f"We detected: {', '.join(flags[:2])}. "
-    
-    if claims:
-        summary += f"We found {len(claims)} claim(s) to verify."
-    
-    return summary
+    emoji = "✅" if score >= 75 else "⚠️" if score >= 50 else "❌"
+    verdict = "likely credible" if score >= 75 else "uncertain" if score >= 50 else "likely false"
+    return f"{emoji} This content appears {verdict}."
