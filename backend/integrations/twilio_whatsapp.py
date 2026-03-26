@@ -1,7 +1,7 @@
 import os
 import requests
 import base64
-from scoring import calculate_credibility_score
+from scoring import calculate_credibility_score, detect_intent, generate_chat_reply
 
 TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID', '')
 TWILIO_AUTH_TOKEN  = os.getenv('TWILIO_AUTH_TOKEN', '')
@@ -9,116 +9,140 @@ TWILIO_AUTH_TOKEN  = os.getenv('TWILIO_AUTH_TOKEN', '')
 
 def handle_whatsapp_message(text='', media_url=None, media_type='image/jpeg'):
     """
-    Process WhatsApp message (text or image) and return a formatted reply.
+    Smart WhatsApp message handler:
+    - Greetings / questions → natural Gemini reply
+    - News/claims → credibility analysis
+    - Images → analyze and give visual credibility report
     """
     try:
-        # ── Image analysis ────────────────────────────────────────────────────
+        # ── Image received ────────────────────────────────────────────────────
         if media_url:
-            result = _analyze_media(media_url, media_type, caption=text)
-            return _format_response(result, is_image=True)
+            result = _download_and_analyze(media_url, media_type, caption=text)
+            return _format_score(result, is_image=True)
 
-        # ── Text too short ────────────────────────────────────────────────────
-        if not text or len(text.strip()) < 5:
+        text = text.strip()
+
+        # ── Empty message ─────────────────────────────────────────────────────
+        if not text:
+            return _welcome_message()
+
+        # ── Detect intent ─────────────────────────────────────────────────────
+        intent = detect_intent(text)
+
+        if intent == 'GREETING':
+            return _welcome_message()
+
+        if intent in ('QUESTION', 'CONVERSATION'):
+            return generate_chat_reply(text)
+
+        # ── CLAIM → run credibility analysis ──────────────────────────────────
+        if len(text) < 10:
             return (
-                "👋 Hi! I'm your *Credibility Checker Bot*.\n\n"
-                "📝 *Text:* Send me any headline, claim, or article.\n"
-                "🖼️ *Image:* Send me a screenshot or photo to analyze.\n\n"
-                "I'll give you an AI-powered credibility score instantly using Gemini AI! 🔍"
+                "Please send a longer message to fact-check.\n\n"
+                "For example:\n"
+                "\"Scientists discovered a miracle cure for cancer\"\n\n"
+                "Or send me an image to analyze 🖼️"
             )
 
-        # ── Text analysis ─────────────────────────────────────────────────────
         result = calculate_credibility_score(text)
-        return _format_response(result, is_image=False)
+        return _format_score(result, is_image=False)
 
     except Exception as e:
         print(f"WhatsApp handler error: {e}")
-        return "⚠️ Error analyzing your message. Please try again with different text."
+        return "⚠️ Error processing your message. Please try again."
 
 
-def _analyze_media(media_url, media_type, caption=''):
-    """Download Twilio media and analyze with Gemini vision"""
+def _download_and_analyze(media_url, media_type, caption=''):
+    """Download Twilio media and run Gemini image analysis"""
     try:
-        # Download image from Twilio (requires auth)
         auth = (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN) if TWILIO_ACCOUNT_SID else None
-        resp = requests.get(media_url, auth=auth, timeout=10)
-
+        resp = requests.get(media_url, auth=auth, timeout=12)
         if resp.status_code != 200:
-            raise Exception(f"Failed to download media: HTTP {resp.status_code}")
-
-        image_bytes = resp.content
-        result = calculate_credibility_score(
+            raise Exception(f"HTTP {resp.status_code}")
+        return calculate_credibility_score(
             text=caption or '[Image analysis]',
-            image_data=image_bytes,
+            image_data=resp.content,
             image_mime=media_type
         )
-        return result
-
     except Exception as e:
-        print(f"Media download/analysis error: {e}")
-        # Fall back to analyzing just the caption if image fails
-        if caption and len(caption) > 5:
+        print(f"Media error: {e}")
+        if caption and len(caption) > 10:
             return calculate_credibility_score(caption)
         raise
 
 
-def _format_response(result, is_image=False):
-    """Format the scoring result into a WhatsApp-friendly message"""
+def _format_score(result, is_image=False):
+    """Format scoring result as a clean WhatsApp message"""
     score    = result.get('score', 50)
-    breakdown = result.get('breakdown', {})
+    bd       = result.get('breakdown', {})
     flags    = result.get('flags', [])
     claims   = result.get('claims', [])
     verdict  = result.get('verdict', 'UNCERTAIN')
     summary  = result.get('summary', '')
-    reasoning = result.get('reasoning', '')
 
-    # Emoji + colour
-    if score >= 75:
-        circle, verdict_label = '🟢', 'CREDIBLE'
-    elif score >= 50:
-        circle, verdict_label = '🟡', 'UNCERTAIN'
-    else:
-        circle, verdict_label = '🔴', 'LIKELY FALSE'
+    if score >= 75:   circle, label = '🟢', 'CREDIBLE'
+    elif score >= 50: circle, label = '🟡', 'UNCERTAIN'
+    else:             circle, label = '🔴', 'LIKELY FALSE'
 
-    content_label = "🖼️ *Image*" if is_image else "📝 *Text*"
+    content_icon = '🖼️ Image' if is_image else '📝 Text'
 
-    msg  = f"{circle} *{verdict_label}* — {content_label} Analysis\n"
-    msg += f"━━━━━━━━━━━━━━━\n"
-    msg += f"📊 *Score: {score}/100*\n\n"
+    lines = [
+        f"{circle} *{label}* — {content_icon} Analysis",
+        "━━━━━━━━━━━━━━━",
+        f"📊 *Credibility Score: {score}/100*",
+        f"🏷️ Verdict: {verdict.replace('_', ' ')}",
+        "",
+    ]
 
     # Breakdown
     if is_image:
-        msg += "🔬 *Visual Analysis:*\n"
-        msg += f"  • Authenticity: {breakdown.get('visual_authenticity', '–')}%\n"
-        msg += f"  • Text claims: {breakdown.get('text_credibility', '–')}%\n"
-        msg += f"  • Context: {breakdown.get('context_accuracy', '–')}%\n"
-        msg += f"  • Source quality: {breakdown.get('source_quality', '–')}%\n\n"
+        lines += [
+            "🔬 *Visual Analysis:*",
+            f"  • Authenticity: {bd.get('visual_authenticity', '–')}%",
+            f"  • Text claims: {bd.get('text_credibility', '–')}%",
+            f"  • Context: {bd.get('context_accuracy', '–')}%",
+            f"  • Sources: {bd.get('source_quality', '–')}%",
+            "",
+        ]
     else:
-        msg += "📈 *Breakdown:*\n"
-        msg += f"  • Fact match: {breakdown.get('fact_match', '–')}%\n"
-        msg += f"  • Language quality: {breakdown.get('language', '–')}%\n"
-        msg += f"  • Sentiment: {breakdown.get('sentiment', '–')}%\n"
-        msg += f"  • Source quality: {breakdown.get('source_quality', '–')}%\n\n"
+        lines += [
+            "📈 *Breakdown:*",
+            f"  • Fact match: {bd.get('fact_match', '–')}%",
+            f"  • Language: {bd.get('language', '–')}%",
+            f"  • Sentiment: {bd.get('sentiment', '–')}%",
+            f"  • Sources: {bd.get('source_quality', '–')}%",
+            "",
+        ]
 
-    # Summary
     if summary:
-        msg += f"💡 *Assessment:*\n{summary}\n\n"
+        lines += [f"💡 {summary}", ""]
 
-    # Flags
     if flags:
-        msg += f"⚠️ *Red Flags:*\n"
-        for flag in flags[:3]:
-            msg += f"  • {flag}\n"
-        msg += "\n"
+        lines.append("⚠️ *Red Flags:*")
+        for f in flags[:3]:
+            lines.append(f"  • {f}")
+        lines.append("")
 
-    # Fact-checked claims
     fact_claims = [c for c in claims if c.get('type') == 'FACT_CHECKED']
     if fact_claims:
-        msg += f"🔎 *Fact Checks Found:*\n"
+        lines.append("🔎 *Fact Checks:*")
         for c in fact_claims[:2]:
-            rating = c.get('rating', 'unknown')
-            pub = c.get('publisher', '')
-            msg += f"  • \"{c['text'][:60]}...\"\n    → *{rating}* ({pub})\n"
-        msg += "\n"
+            lines.append(f"  • \"{c['text'][:55]}...\"")
+            lines.append(f"    → {c.get('rating', 'checked')} ({c.get('publisher', '')})")
+        lines.append("")
 
-    msg += f"_Powered by Gemini AI + Google Fact Check_ 🤖"
-    return msg
+    lines.append("_Powered by Gemini 2.5 Flash + Google Fact Check AI_ 🤖")
+    return "\n".join(lines)
+
+
+def _welcome_message():
+    return (
+        "👋 Hi! I'm *CredChecker Bot* 🔍\n\n"
+        "I use *Gemini 2.5 Flash AI* to detect misinformation!\n\n"
+        "Here's what I can do:\n"
+        "📝 *Fact-check text* — send any headline, claim, or article\n"
+        "🖼️ *Analyze images* — send screenshots to detect manipulation\n"
+        "🔎 *Cross-check* — I verify against Google's Fact Check database\n\n"
+        "Just send me something suspicious and I'll give you a credibility score!\n\n"
+        "_Example: \"Scientists found a miracle cure for cancer\"_"
+    )
