@@ -8,6 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#6366f1" />
+  <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/3208/3208679.png" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -348,12 +351,22 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
-      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `HTTP ${res.status}`); }
-      renderResults(await res.json());
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e.error || `Error ${res.status}: Backend issue.`);
+      }
+      const data = await res.json();
+      if (data.flags && data.flags.some(f => f.includes('Quota Exceeded'))) {
+         showError("⚠️ API Quota Exceeded. The AI is currently busy. Please add more keys or wait 1 minute.");
+      }
+      renderResults(data);
     } catch (e) {
       console.error(e);
-      showError(e.message || 'Could not reach the backend.');
+      let m = e.message || 'Could not reach the AI. Please check your internet or wait for the server to wake up.';
+      if (m.includes('Failed to fetch')) m = '🌐 Network error: The backend might be asleep or inaccessible.';
+      showError(m);
     } finally { hideLoader(); }
+
   }
 
   // ── Render ───────────────────────────────────────────────────────────────
