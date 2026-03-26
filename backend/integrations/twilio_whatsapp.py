@@ -127,13 +127,17 @@ def _format_score(result, is_image=False):
         ]
 
     if summary:
-        lines += [f"💡 {summary}", ""]
+        lines += [f"💡 *Summary:* {summary}", ""]
+
+    if result.get('reasoning'):
+        lines += [f"🧠 *AI Reasoning:*", f"{result['reasoning']}", ""]
 
     if flags:
         lines.append("⚠️ *Red Flags:*")
         for f in flags[:3]:
             lines.append(f"  • {f}")
         lines.append("")
+
 
     fact_claims = [c for c in claims if c.get('type') == 'FACT_CHECKED']
     if fact_claims:
