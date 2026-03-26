@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Credibility Checker – AI Misinformation Detector</title>
+  <meta name="description" content="Verify claims and detect misinformation with AI-powered fact-checking. Paste any headline, tweet, or article and get an instant credibility score." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0e1a;
+      --surface: #111827;
+      --surface2: #1a2236;
+      --border: rgba(99,102,241,0.2);
+      --accent: #6366f1;
+      --accent2: #818cf8;
+      --text: #e2e8f0;
+      --muted: #8892a4;
+      --green: #10b981;
+      --yellow: #f59e0b;
+      --red: #ef4444;
+      --radius: 14px;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── animated background ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 20% -10%, rgba(99,102,241,0.18) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 80% 110%, rgba(16,185,129,0.12) 0%, transparent 60%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── header ── */
+    header {
+      position: relative; z-index: 1;
+      padding: 24px 20px 20px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(10,14,26,0.7);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .logo-icon {
+      width: 44px; height: 44px;
+      background: linear-gradient(135deg, var(--accent), #a78bfa);
+      border-radius: 12px;
+      display: grid; place-items: center;
+      font-size: 22px;
+      flex-shrink: 0;
+      box-shadow: 0 0 20px rgba(99,102,241,0.4);
+    }
+    header h1 { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.5px; }
+    header h1 span { color: var(--accent2); }
+    header p { color: var(--muted); font-size: 0.85rem; margin-top: 2px; }
+
+    /* ── main layout ── */
+    main {
+      position: relative; z-index: 1;
+      max-width: 780px;
+      margin: 40px auto;
+      padding: 0 20px 60px;
+    }
+
+    /* ── glass card ── */
+    .card {
+      background: rgba(17,24,39,0.85);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+
+    /* ── input form ── */
+    label.field-label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent2);
+      margin-bottom: 10px;
+    }
+    textarea#input-text {
+      width: 100%;
+      background: var(--bg);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.95rem;
+      line-height: 1.6;
+      padding: 14px 16px;
+      resize: vertical;
+      min-height: 130px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    textarea#input-text:focus { border-color: var(--accent); }
+    textarea#input-text::placeholder { color: var(--muted); }
+
+    .input-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 8px;
+    }
+    .char-count { font-size: 0.78rem; color: var(--muted); }
+    .char-warn { color: var(--yellow); }
+
+    .btn-check {
+      margin-top: 16px;
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, var(--accent), #7c3aed);
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      font-family: inherit;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+      box-shadow: 0 4px 24px rgba(99,102,241,0.35);
+      letter-spacing: 0.02em;
+    }
+    .btn-check:hover:not(:disabled) { opacity: 0.92; transform: translateY(-1px); box-shadow: 0 6px 30px rgba(99,102,241,0.45); }
+    .btn-check:active:not(:disabled) { transform: translateY(0); }
+    .btn-check:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* ── examples ── */
+    .examples { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--border); }
+    .examples-label { font-size: 0.75rem; font-weight: 600; color: var(--muted); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.08em; }
+    .example-btn {
+      display: block;
+      background: none;
+      border: none;
+      color: var(--accent2);
+      font-family: inherit;
+      font-size: 0.82rem;
+      cursor: pointer;
+      text-align: left;
+      padding: 4px 0;
+      opacity: 0.85;
+      transition: opacity 0.15s, color 0.15s;
+    }
+    .example-btn:hover { opacity: 1; color: #fff; }
+
+    /* ── loader ── */
+    #loader {
+      display: none;
+      margin: 42px auto;
+      text-align: center;
+    }
+    .spinner {
+      width: 44px; height: 44px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 16px;
+    }
+    #loader p { color: var(--muted); font-size: 0.9rem; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── error ── */
+    #error-box {
+      display: none;
+      margin-top: 24px;
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.3);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+    }
+    #error-box h3 { color: var(--red); font-size: 0.9rem; margin-bottom: 4px; }
+    #error-box p { color: #fca5a5; font-size: 0.85rem; }
+
+    /* ── results ── */
+    #results { display: none; margin-top: 32px; }
+
+    /* score card */
+    .score-card {
+      text-align: center;
+      padding: 40px 28px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      background: rgba(17,24,39,0.85);
+      position: relative;
+      overflow: hidden;
+    }
+    .score-card::before {
+      content: '';
+      position: absolute;
+      top: -60px; left: 50%;
+      transform: translateX(-50%);
+      width: 240px; height: 240px;
+      border-radius: 50%;
+      filter: blur(60px);
+      pointer-events: none;
+      opacity: 0.35;
+    }
+    .score-card.green::before { background: var(--green); }
+    .score-card.yellow::before { background: var(--yellow); }
+    .score-card.red::before { background: var(--red); }
+
+    .score-ring-wrap { position: relative; width: 160px; height: 160px; margin: 0 auto 20px; }
+    .score-ring { transform: rotate(-90deg); }
+    .ring-bg { fill: none; stroke: rgba(255,255,255,0.07); stroke-width: 10; }
+    .ring-fill { fill: none; stroke-width: 10; stroke-linecap: round; transition: stroke-dashoffset 1.2s cubic-bezier(0.22,1,0.36,1); }
+    .ring-fill.green { stroke: var(--green); }
+    .ring-fill.yellow { stroke: var(--yellow); }
+    .ring-fill.red { stroke: var(--red); }
+
+    .score-number {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 2.6rem;
+      font-weight: 800;
+      line-height: 1;
+    }
+    .score-number sub { font-size: 0.9rem; font-weight: 500; color: var(--muted); }
+
+    .verdict { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.3px; margin-bottom: 10px; }
+    .summary-text { color: var(--muted); font-size: 0.9rem; max-width: 500px; margin: 0 auto 32px; line-height: 1.6; }
+
+    /* breakdown bars */
+    .breakdown-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+    .breakdown-item { text-align: center; }
+    .breakdown-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 6px; font-weight: 600; }
+    .breakdown-val { font-size: 1.5rem; font-weight: 800; margin-bottom: 8px; }
+    .bar-track { background: rgba(255,255,255,0.07); border-radius: 999px; height: 6px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 999px; transition: width 1s cubic-bezier(0.22,1,0.36,1); }
+    .bar-fill.blue { background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+    .bar-fill.purple { background: linear-gradient(90deg, #a855f7, #d946ef); }
+    .bar-fill.teal { background: linear-gradient(90deg, #0ea5e9, var(--green)); }
+
+    /* flags / claims */
+    .section { margin-top: 20px; }
+    .section-card {
+      border-radius: var(--radius);
+      border: 1px solid;
+      padding: 20px 22px;
+    }
+    .section-card.flags { background: rgba(245,158,11,0.07); border-color: rgba(245,158,11,0.25); }
+    .section-card.claims { background: rgba(99,102,241,0.07); border-color: rgba(99,102,241,0.25); }
+    .section-card.empty { background: rgba(255,255,255,0.03); border-color: var(--border); text-align: center; color: var(--muted); font-size: 0.9rem; padding: 28px; }
+
+    .section-title { font-size: 0.9rem; font-weight: 700; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+    .flags .section-title { color: #fbbf24; }
+    .claims .section-title { color: var(--accent2); }
+
+    .flag-item { display: flex; align-items: flex-start; gap: 8px; color: #fde68a; font-size: 0.85rem; margin-bottom: 8px; line-height: 1.5; }
+    .flag-item::before { content: '⚠️'; flex-shrink: 0; font-size: 0.8rem; margin-top: 1px; }
+
+    .claim-chip {
+      background: rgba(99,102,241,0.12);
+      border: 1px solid rgba(99,102,241,0.2);
+      border-radius: 10px;
+      padding: 10px 14px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .claim-text { font-size: 0.85rem; color: var(--text); flex: 1; }
+    .claim-type-badge {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: rgba(99,102,241,0.2);
+      color: var(--accent2);
+      white-space: nowrap;
+    }
+    .verified-badge {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: rgba(16,185,129,0.2);
+      color: var(--green);
+      white-space: nowrap;
+    }
+
+    /* reset btn */
+    .btn-reset {
+      display: block;
+      margin: 26px auto 0;
+      background: none;
+      border: 1.5px solid var(--border);
+      border-radius: 999px;
+      color: var(--accent2);
+      font-family: inherit;
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 8px 22px;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .btn-reset:hover { border-color: var(--accent); color: #fff; }
+
+    /* ── feature cards ── */
+    #feature-cards { margin-top: 40px; display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+    @media (max-width: 560px) {
+      #feature-cards { grid-template-columns: 1fr; }
+      .breakdown-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+      header h1 { font-size: 1.3rem; }
+    }
+    .feat-card {
+      background: rgba(17,24,39,0.6);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+    .feat-card:hover { border-color: rgba(99,102,241,0.5); transform: translateY(-3px); }
+    .feat-icon { font-size: 1.8rem; margin-bottom: 12px; }
+    .feat-title { font-size: 0.9rem; font-weight: 700; margin-bottom: 6px; }
+    .feat-desc { font-size: 0.78rem; color: var(--muted); line-height: 1.6; }
+
+    /* ── footer ── */
+    footer {
+      position: relative; z-index: 1;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      padding: 20px;
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+
+    /* ── animations ── */
+    .fade-in { animation: fadeIn 0.45s ease both; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo-icon">🔍</div>
+  <div>
+    <h1>Credibility <span>Checker</span></h1>
+    <p>AI-powered misinformation detection</p>
+  </div>
+</header>
+
+<!-- MAIN -->
+<main>
+
+  <!-- Input Card -->
+  <div class="card" id="input-card">
+    <label class="field-label" for="input-text">Paste a headline, tweet, or article</label>
+    <textarea id="input-text" placeholder="e.g. Drinking lemon water every morning cures cancer according to new study..."></textarea>
+    <div class="input-meta">
+      <span class="char-count" id="char-count">0 / 5000</span>
+      <span class="char-count char-warn" id="char-warn" style="display:none;">Approaching limit</span>
+    </div>
+    <button class="btn-check" id="check-btn" onclick="submitCheck()" disabled>Check Credibility</button>
+
+    <div class="examples">
+      <div class="examples-label">Quick examples →</div>
+      <button class="example-btn" onclick="fillExample(this.textContent.trim())">Meta has overtaken Apple to become the world's most valuable company</button>
+      <button class="example-btn" onclick="fillExample(this.textContent.trim())">Drinking 10 glasses of water daily can cure diabetes</button>
+      <button class="example-btn" onclick="fillExample(this.textContent.trim())">Scientists discover 95% of the ocean remains unmapped</button>
+    </div>
+  </div>
+
+  <!-- Loader -->
+  <div id="loader">
+    <div class="spinner"></div>
+    <p>Analyzing content for credibility signals…</p>
+  </div>
+
+  <!-- Error -->
+  <div id="error-box">
+    <h3>Analysis Failed</h3>
+    <p id="error-msg">Something went wrong. Please try again.</p>
+  </div>
+
+  <!-- Results -->
+  <div id="results">
+
+    <!-- Score Card -->
+    <div class="score-card card fade-in" id="score-card">
+      <div class="score-ring-wrap">
+        <svg class="score-ring" width="160" height="160" viewBox="0 0 160 160">
+          <circle class="ring-bg" cx="80" cy="80" r="68"/>
+          <circle class="ring-fill" id="ring-fill" cx="80" cy="80" r="68"
+            stroke-dasharray="427.26"
+            stroke-dashoffset="427.26"/>
+        </svg>
+        <div class="score-number" id="score-number">0<sub>/100</sub></div>
+      </div>
+
+      <div class="verdict" id="verdict-text">—</div>
+      <div class="summary-text" id="summary-text"></div>
+
+      <div class="breakdown-grid">
+        <div class="breakdown-item">
+          <div class="breakdown-label">Fact Match</div>
+          <div class="breakdown-val" id="bd-fact">—</div>
+          <div class="bar-track"><div class="bar-fill blue" id="bar-fact" style="width:0%"></div></div>
+        </div>
+        <div class="breakdown-item">
+          <div class="breakdown-label">Language</div>
+          <div class="breakdown-val" id="bd-lang">—</div>
+          <div class="bar-track"><div class="bar-fill purple" id="bar-lang" style="width:0%"></div></div>
+        </div>
+        <div class="breakdown-item">
+          <div class="breakdown-label">Sentiment</div>
+          <div class="breakdown-val" id="bd-sent">—</div>
+          <div class="bar-track"><div class="bar-fill teal" id="bar-sent" style="width:0%"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Flags -->
+    <div class="section" id="flags-section"></div>
+
+    <!-- Claims -->
+    <div class="section" id="claims-section"></div>
+
+    <button class="btn-reset" onclick="resetUI()">← Check another text</button>
+  </div>
+
+  <!-- Feature cards (shown before results) -->
+  <div id="feature-cards">
+    <div class="feat-card">
+      <div class="feat-icon">🔍</div>
+      <div class="feat-title">Fact-Check Matching</div>
+      <div class="feat-desc">Claims are compared against verified fact-checking databases via Google's Fact Check API.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">📊</div>
+      <div class="feat-title">Language Analysis</div>
+      <div class="feat-desc">Detects sensationalism, ALL CAPS, excessive punctuation, and emotional language patterns.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">⚠️</div>
+      <div class="feat-title">Red Flag Detection</div>
+      <div class="feat-desc">Identifies warning signs like unverified claims, vague language, and missing sources.</div>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  Built for the 24-Hour Hackathon &nbsp;•&nbsp; Tech Titans &nbsp;•&nbsp; Not a substitute for professional fact-checking
+</footer>
+
+<script>
+  // 🔧 DEPLOYMENT: Change this to your Render URL after deploying the backend
+  // Example: const BACKEND_URL = 'https://credibility-checker-abc.onrender.com';
+  const BACKEND_URL = 'https://YOUR-RENDER-APP.onrender.com';
+
+
+  const textarea    = document.getElementById('input-text');
+  const checkBtn    = document.getElementById('check-btn');
+  const charCount   = document.getElementById('char-count');
+  const charWarn    = document.getElementById('char-warn');
+
+  textarea.addEventListener('input', () => {
+    const len = textarea.value.length;
+    charCount.textContent = `${len} / 5000`;
+    charWarn.style.display = len > 4500 ? 'inline' : 'none';
+    checkBtn.disabled = len < 5 || len > 5000;
+  });
+
+  function fillExample(text) {
+    textarea.value = text;
+    textarea.dispatchEvent(new Event('input'));
+    textarea.focus();
+  }
+
+  async function submitCheck() {
+    const text = textarea.value.trim();
+    if (!text || text.length < 5) return;
+
+    showLoader();
+    hideError();
+    hideResults();
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/score`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, type: 'text' })
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Server error ${res.status}`);
+      }
+
+      const data = await res.json();
+      renderResults(data);
+    } catch (e) {
+      console.error(e);
+      showError(e.message || 'Could not reach the backend. Is the Flask server running?');
+    } finally {
+      hideLoader();
+    }
+  }
+
+  /* ── render ── */
+  function renderResults(data) {
+    const score = data.score ?? 0;
+    const bd    = data.breakdown ?? {};
+    const flags = data.flags ?? [];
+    const claims = data.claims ?? [];
+
+    // colour class
+    const cls = score >= 75 ? 'green' : score >= 50 ? 'yellow' : 'red';
+    const card = document.getElementById('score-card');
+    card.className = `score-card card fade-in ${cls}`;
+
+    // animated ring
+    const circumference = 427.26;
+    const fill = document.getElementById('ring-fill');
+    fill.className = `ring-fill ${cls}`;
+    // reset first so animation replays
+    fill.style.strokeDashoffset = circumference;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        fill.style.strokeDashoffset = circumference * (1 - score / 100);
+      });
+    });
+
+    // counter animation
+    animateNumber('score-number', score, v => `${v}<sub>/100</sub>`);
+
+    // verdict
+    const verdicts = { green: '✅ Likely Credible', yellow: '⚠️ Uncertain', red: '❌ Likely False' };
+    document.getElementById('verdict-text').textContent = verdicts[cls];
+    document.getElementById('verdict-text').style.color = `var(--${cls})`;
+    document.getElementById('summary-text').textContent = data.summary ?? '';
+
+    // breakdown
+    animateNumber('bd-fact', bd.fact_match ?? 0, v => `${v}%`);
+    animateNumber('bd-lang', bd.language    ?? 0, v => `${v}%`);
+    animateNumber('bd-sent', bd.sentiment   ?? 0, v => `${v}%`);
+    setTimeout(() => {
+      document.getElementById('bar-fact').style.width = `${bd.fact_match ?? 0}%`;
+      document.getElementById('bar-lang').style.width = `${bd.language    ?? 0}%`;
+      document.getElementById('bar-sent').style.width = `${bd.sentiment   ?? 0}%`;
+    }, 80);
+
+    // flags
+    const flagsEl = document.getElementById('flags-section');
+    if (flags.length) {
+      flagsEl.innerHTML = `
+        <div class="section-card flags fade-in">
+          <div class="section-title">⚠️ Red Flags Detected</div>
+          ${flags.map(f => `<div class="flag-item">${escHtml(f)}</div>`).join('')}
+        </div>`;
+    } else {
+      flagsEl.innerHTML = '';
+    }
+
+    // claims
+    const claimsEl = document.getElementById('claims-section');
+    if (claims.length) {
+      claimsEl.innerHTML = `
+        <div class="section-card claims fade-in">
+          <div class="section-title">📌 Claims Detected (${claims.length})</div>
+          ${claims.slice(0,5).map(c => `
+            <div class="claim-chip">
+              <span class="claim-text">${escHtml(c.text)}</span>
+              <span class="claim-type-badge">${escHtml(c.type)}</span>
+              ${c.verified ? '<span class="verified-badge">✓ Verified</span>' : ''}
+            </div>`).join('')}
+          ${claims.length > 5 ? `<p style="font-size:0.8rem;color:var(--muted);margin-top:8px;">…and ${claims.length - 5} more</p>` : ''}
+        </div>`;
+    } else {
+      claimsEl.innerHTML = '';
+    }
+
+    if (!flags.length && !claims.length) {
+      claimsEl.innerHTML = `<div class="section-card empty fade-in">No major red flags or claims detected.</div>`;
+    }
+
+    document.getElementById('results').style.display = 'block';
+    document.getElementById('feature-cards').style.display = 'none';
+    document.getElementById('input-card').style.display = 'none';
+  }
+
+  function resetUI() {
+    document.getElementById('results').style.display = 'none';
+    document.getElementById('feature-cards').style.display = 'grid';
+    document.getElementById('input-card').style.display = 'block';
+    hideError();
+    textarea.value = '';
+    textarea.dispatchEvent(new Event('input'));
+  }
+
+  /* ── helpers ── */
+  function showLoader()  { document.getElementById('loader').style.display = 'block'; checkBtn.disabled = true; }
+  function hideLoader()  { document.getElementById('loader').style.display = 'none';  checkBtn.disabled = false; }
+  function showError(m)  { const b = document.getElementById('error-box'); b.style.display='block'; document.getElementById('error-msg').textContent = m; }
+  function hideError()   { document.getElementById('error-box').style.display = 'none'; }
+  function hideResults() { document.getElementById('results').style.display = 'none'; }
+  function escHtml(s)    { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  function animateNumber(id, target, fmt) {
+    const el = document.getElementById(id);
+    let start = 0;
+    const dur = 900;
+    const t0 = performance.now();
+    function step(now) {
+      const p = Math.min((now - t0) / dur, 1);
+      const ease = 1 - Math.pow(1 - p, 3);
+      el.innerHTML = fmt(Math.round(ease * target));
+      if (p < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+</script>
+
+</body>
+</html>
