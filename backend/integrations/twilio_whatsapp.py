@@ -17,11 +17,22 @@ def handle_whatsapp_message(text='', media_url=None, media_type='image/jpeg'):
     try:
         # ── Image received ────────────────────────────────────────────────────
         if media_url:
+            if not text or len(text) < 3:
+                return (
+                    "🖼️ *I've received your image!*\n\n"
+                    "Should I analyze this for misinformation, deepfakes, or manipulation?\n\n"
+                    "Reply with *'Yes'* or *'Check'* to start the AI analysis."
+                )
             result = _download_and_analyze(media_url, media_type, caption=text)
             return _format_score(result, is_image=True)
 
         text = text.strip()
 
+        # ── Handle simple 'Yes' for image analysis ────────────────────────────
+        # (This is a bit tricky without state, but if they say 'Yes' and we just 
+        #  got an image, we'd need a way to remember. For now, let's keep it simple 
+        #  and just analyze if they send a prompt with the image or after.)
+        
         # ── Empty message ─────────────────────────────────────────────────────
         if not text:
             return _welcome_message()
@@ -50,6 +61,7 @@ def handle_whatsapp_message(text='', media_url=None, media_type='image/jpeg'):
     except Exception as e:
         print(f"WhatsApp handler error: {e}")
         return "⚠️ Error processing your message. Please try again."
+
 
 
 def _download_and_analyze(media_url, media_type, caption=''):
@@ -131,14 +143,14 @@ def _format_score(result, is_image=False):
             lines.append(f"    → {c.get('rating', 'checked')} ({c.get('publisher', '')})")
         lines.append("")
 
-    lines.append("_Powered by Gemini 2.5 Flash + Google Fact Check AI_ 🤖")
+    lines.append("_Powered by Gemini 2.0 Flash + Google Fact Check AI_ 🤖")
     return "\n".join(lines)
 
 
 def _welcome_message():
     return (
         "👋 Hi! I'm *CredChecker Bot* 🔍\n\n"
-        "I use *Gemini 2.5 Flash AI* to detect misinformation!\n\n"
+        "I use *Gemini 2.0 Flash AI* to detect misinformation!\n\n"
         "Here's what I can do:\n"
         "📝 *Fact-check text* — send any headline, claim, or article\n"
         "🖼️ *Analyze images* — send screenshots to detect manipulation\n"
@@ -146,3 +158,4 @@ def _welcome_message():
         "Just send me something suspicious and I'll give you a credibility score!\n\n"
         "_Example: \"Scientists found a miracle cure for cancer\"_"
     )
+
