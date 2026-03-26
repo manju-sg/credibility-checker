@@ -14,16 +14,15 @@ try:
     GEMINI_API_KEY = os.getenv('GEMINI_API_KEY') or os.getenv('GOOGLE_FACT_CHECK_API_KEY', '')
     if GEMINI_API_KEY:
         gemini_client = genai.Client(api_key=GEMINI_API_KEY)
-        GEMINI_MODEL  = 'gemini-2.5-flash'
-        print(f"✅ Gemini 2.5 Flash loaded successfully")
-
-
+        GEMINI_MODEL  = 'gemini-1.5-flash'
+        print(f"✅ Gemini AI configured (model: {GEMINI_MODEL})")
     else:
         gemini_client = None
         print("⚠️  No GEMINI_API_KEY found — falling back to NLP scoring")
 except Exception as e:
-    print(f"❌ Gemini init error: {e}")
+    print(f"❌ Gemini initialization error: {str(e)}")
     gemini_client = None
+
 
 # ── spaCy ─────────────────────────────────────────────────────────────────────
 try:
