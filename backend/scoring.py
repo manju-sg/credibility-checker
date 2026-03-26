@@ -227,7 +227,17 @@ def _analyze_text_gemini(text):
             "reasoning": data.get('reasoning', ''),
         }
     except Exception as e:
-        print(f"Gemini text error: {e}")
+        err_msg = str(e)
+        if "429" in err_msg or "ResourceExhausted" in err_msg:
+            print(f"⚠️  Gemini Quota Exceeded (429): {err_msg}")
+            return {
+                "score": 50, "breakdown": {"fact_match": 50, "language": 50, "sentiment": 50, "source_quality": 50},
+                "claims": [], "flags": ["AI Quota Exceeded — Too many requests"],
+                "verdict": "UNCERTAIN", 
+                "summary": "⚠️ I'm a bit overwhelmed! Please wait 60 seconds and try again. (API Quota Exceeded)", 
+                "reasoning": "The Gemini API free tier has reached its rate limit. Please try again in 1 minute."
+            }
+        print(f"Gemini text error: {err_msg}")
         return None
 
 
@@ -272,13 +282,23 @@ def _analyze_image(image_data, mime_type="image/jpeg"):
             "reasoning": data.get('reasoning', ''),
         }
     except Exception as e:
-        print(f"Image analysis error: {e}")
+        err_msg = str(e)
+        if "429" in err_msg or "ResourceExhausted" in err_msg:
+            print(f"⚠️  Gemini Image Quota Exceeded (429): {err_msg}")
+            return {
+                "score": 50, "content_type": "image", "breakdown": {}, "claims": [],
+                "flags": ["Image Quota Exceeded"], "verdict": "UNCERTAIN", 
+                "summary": "⚠️ Image analysis limit reached. Please wait 1 minute before sending another image.", 
+                "reasoning": "Gemini's free vision quota has been exceeded. Please try again in 60 seconds."
+            }
+        print(f"Image analysis error: {err_msg}")
         return {
             "score": 50, "content_type": "image",
             "breakdown": {}, "claims": [],
-            "flags": [f"Image analysis error: {str(e)[:80]}"],
+            "flags": [f"Image analysis error: {err_msg[:80]}"],
             "verdict": "UNCERTAIN", "summary": "Could not fully analyze image.", "reasoning": ""
         }
+
 
 
 # ── Google Fact Check API ─────────────────────────────────────────────────────
