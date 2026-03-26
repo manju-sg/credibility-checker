@@ -72,24 +72,24 @@ def whatsapp_webhook():
         media_url     = form_data.get('MediaUrl0', '')
         media_type    = form_data.get('MediaContentType0', 'image/jpeg')
 
+        print(f"📥 RECEIVED: {incoming_msg[:50]}...", flush=True)
+
         if num_media > 0 and media_url:
-            # Download image and analyse
             response_text = handle_whatsapp_message(
                 text=incoming_msg or '[Image sent]',
                 media_url=media_url,
                 media_type=media_type
             )
-        elif incoming_msg:
+        elif incoming_msg or num_media == 0:
             response_text = handle_whatsapp_message(text=incoming_msg)
         else:
-            response_text = (
-                "👋 Hi! Send me any *text, headline, or image* to check its credibility.\n\n"
-                "I'll give you an AI-powered score instantly! 🔍"
-            )
+            response_text = "👋 Hi! Send me something to check!"
 
-        print(f"✅ Bot replying with: {response_text[:50]}...")
+        print(f"📤 REPLYING: {response_text[:60]}...", flush=True)
+
         resp.message(response_text)
         return str(resp), 200, {'Content-Type': 'text/xml'}
+
 
 
     except Exception as e:
