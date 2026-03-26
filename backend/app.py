@@ -102,15 +102,15 @@ def whatsapp_webhook():
 
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({"status": "ok", "service": "credibility-checker", "ai": "gemini-2.5-flash"}), 200
+    return jsonify({"status": "ok", "service": "veritas-ai", "engine": "veritas-local-v1"}), 200
 
 
 @app.route('/', methods=['GET'])
 def index():
     return jsonify({
-        "name": "Credibility Checker API (Gemini-powered)",
-        "version": "2.5.0",
-
+        "name": "Veritas AI Precision Engine (Local + FactCheck API)",
+        "version": "3.0.0",
+        "description": "Offline pattern recognition for misinformation detection.",
         "endpoints": {
             "POST /api/score": "Score text or image credibility",
             "POST /api/whatsapp": "WhatsApp webhook (text + images)",

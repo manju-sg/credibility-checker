@@ -58,40 +58,44 @@ Return ONLY valid JSON:
 
 # ── Master Calculation Logic ──────────────────────────────────────────────────
 
-def calculate_credibility_score(text, image_data=None, image_mime="image/jpeg"):
+from local_engine import engine as local_engine # Optimized Offline Engine
+
+def calculate_credibility_score(text='', image_data=None, image_mime='image/jpeg'):
     """
-    Advanced Multi-Key & Multi-Step Fact Checking:
-    1. AI Analysis (with key rotation for 429 bypass)
-    2. Google Fact Check API cross-reference
-    3. Final 'Client-Ready' Synthesis
+    Main Orchestrator:
+    - Text: Uses local_engine (Offline, No Quota Limit)
+    - Fact Checks: Uses Google API (Database Results)
+    - Image: Uses Gemini (Multimodal fallback)
     """
     try:
-        # Step 1: AI Analysis (Rotating Keys)
-        ai_res = None
+        # 1. IMAGE ANALYSIS (Needs Computer Vision)
         if image_data:
             ai_res = _try_gemini(_analyze_image, image_data, image_mime)
-        else:
-            ai_res = _try_gemini(_analyze_text_gemini, text)
+            if not ai_res:
+                return _error_result("Image analysis requires an active Gemini API key.")
+            return ai_res
 
-        # Step 2: External Fact Check API
-        fact_hit = _check_google_fact_api(text) if not image_data and GOOGLE_FACT_CHECK_API_KEY else None
+        if not text:
+            return _error_result("No text provided.")
 
-        # Step 3: Synthesis
-        if not ai_res:
-            return _error_result("⚠️ AI is currently busy (Quota limit reached). Please wait 60s or add more API keys.")
+        # 2. LOCAL TEXT ANALYSIS (Accurate Linguistic Pattern Matching)
+        res = local_engine.analyze(text)
+        
+        # 3. GOOGLE FACT CHECK API (Database Verification)
+        if GOOGLE_FACT_CHECK_API_KEY:
+            fact_hit = _check_google_fact_api(text)
+            if fact_hit and fact_hit.get('false_count', 0) > 0:
+                res['score'] = max(5, res['score'] - 40)
+                res['verdict'] = "FALSE"
+                res['summary'] = "❌ Debunked by official fact-checkers."
+                res['reasoning'] = "This claim was found in global fact-check databases with a FALSE rating. " + res['reasoning']
+                res['flags'].append("Explicitly Debunked")
 
-        # Override AI if Google Fact Check has hard proof
-        if fact_hit and fact_hit['false_count'] > 0:
-            ai_res['score'] = min(ai_res['score'], 20)
-            ai_res['verdict'] = "FALSE"
-            ai_res['flags'].append("🔴 Explicitly debunked by human fact-checkers.")
-            ai_res['summary'] = "❌ This claim has been officially debunked."
-
-        return ai_res
+        return res
 
     except Exception as e:
-        print(f"Critical error: {e}")
-        return _error_result("Failed to analyze content.")
+        print(f"Scoring Orchestrator Error: {e}")
+        return _error_result(f"Analysis failed: {str(e)}")
 
 
 # ── Helper: Multi-Key Runner ──────────────────────────────────────────────────
