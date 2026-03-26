@@ -100,14 +100,15 @@ def whatsapp_webhook():
 
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({"status": "ok", "service": "credibility-checker", "ai": "gemini-2.0-flash"}), 200
+    return jsonify({"status": "ok", "service": "credibility-checker", "ai": "gemini-2.5-flash"}), 200
 
 
 @app.route('/', methods=['GET'])
 def index():
     return jsonify({
         "name": "Credibility Checker API (Gemini-powered)",
-        "version": "2.0.0",
+        "version": "2.5.0",
+
         "endpoints": {
             "POST /api/score": "Score text or image credibility",
             "POST /api/whatsapp": "WhatsApp webhook (text + images)",
